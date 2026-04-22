@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>FORSAKEN — Online</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Oswald:wght@400;700&display=swap');
 :root{
@@ -57,6 +60,19 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 .auth-remember input[type=checkbox]{accent-color:var(--blood);width:13px;height:13px;cursor:pointer;flex-shrink:0;}
 .btn-logout{background:transparent;border:1px solid var(--muted);color:var(--dim);font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:.18em;padding:7px 20px;cursor:pointer;text-transform:uppercase;transition:color .15s,border-color .15s;}
 .btn-logout:hover{border-color:var(--blood);color:var(--blood);}
+/* ── PASSWORD WRAPPER ── */
+.auth-pass-wrap{position:relative;width:100%;display:flex;}
+.auth-pass-wrap .auth-field{flex:1;padding-right:40px;}
+.auth-pass-eye{
+  position:absolute;right:0;top:0;bottom:0;
+  width:40px;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:none;cursor:pointer;
+  color:var(--dim);font-size:1rem;transition:color .15s;
+  padding:0;
+}
+.auth-pass-eye:hover{color:var(--blood);}
+/* ── FIREBASE STATUS ── */
+.fb-status{font-size:.55rem;letter-spacing:.18em;color:var(--dim);text-align:center;min-height:14px;}
 
 /* ── LOBBY STATS — name pills ── */
 #lobbyStatsPanel{
@@ -273,7 +289,9 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 .ability-cd-overlay{position:absolute;inset:0;border-radius:6px;background:rgba(0,0,0,.72);transform-origin:top center;pointer-events:none;}
 .ability-icon-emoji{font-size:2.8rem;z-index:1;position:relative;}
 .ability-cd-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;font-size:1.55rem;font-weight:700;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.9);z-index:2;pointer-events:none;}
-.ability-key{font-size:.55rem;letter-spacing:.18em;color:rgba(255,255,255,.4);background:rgba(0,0,0,.5);padding:2px 7px;border-radius:2px;border:1px solid rgba(255,255,255,.1);}
+@keyframes enrageGlow{0%,100%{box-shadow:0 0 10px rgba(255,80,0,.6),0 0 25px rgba(255,0,0,.3);}50%{box-shadow:0 0 20px rgba(255,80,0,.9),0 0 50px rgba(255,0,0,.5);}}
+.ability-icon-wrap.enraged-active{border-color:#ff5500!important;animation:enrageGlow 0.7s infinite;}
+
 .ability-name{font-size:.55rem;letter-spacing:.1em;color:rgba(255,255,255,.55);}
 #hudVitalsRight{min-width:190px;}
 
@@ -365,7 +383,18 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 @keyframes bloxyPulse{0%,100%{box-shadow:0 0 0 rgba(46,204,113,0)}50%{box-shadow:0 0 12px rgba(46,204,113,.4)}}
 #bloxyBuffBar.show{display:flex;}
 
-/* ── KILLER WIN OVERLAY ── */
+/* Ghost Burger active buff indicator */
+#gbBuffBar{
+  position:absolute;top:84px;left:50%;transform:translateX(-50%);
+  display:none;align-items:center;gap:8px;
+  background:rgba(0,0,0,.68);border:1px solid rgba(150,100,255,.35);
+  padding:4px 16px;border-radius:20px;pointer-events:none;
+  font-family:'Share Tech Mono',monospace;font-size:.65rem;letter-spacing:.15em;
+  color:rgba(180,150,255,.95);
+  animation:gbPulse 1.2s infinite;
+}
+@keyframes gbPulse{0%,100%{box-shadow:0 0 0 rgba(150,100,255,0)}50%{box-shadow:0 0 12px rgba(150,100,255,.45)}}
+#gbBuffBar.show{display:flex;}
 #killerWinOv{
   position:absolute;inset:0;z-index:580;
   display:none;align-items:center;justify-content:center;
@@ -455,6 +484,335 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 #tUp{bottom:108px;left:55px}#tDown{bottom:52px;left:55px}#tLeft{bottom:80px;left:0}#tRight{bottom:80px;left:110px}
 #tSpr{bottom:80px;left:165px;width:36px;height:36px;font-size:.58rem;color:var(--gold);border-color:rgba(243,156,18,.3);}
 #tAct{bottom:80px;right:22px;width:62px;height:62px;border-radius:50%;background:rgba(192,57,43,.22);border-color:var(--blood);color:var(--blood);font-size:1.3rem;}
+
+/* ══ LOBBY LEFT MENU ══ */
+#lobbyLeftMenu{
+  position:absolute;left:14px;top:50%;transform:translateY(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:0;
+  pointer-events:all;z-index:60;
+}
+#llmMoney{
+  font-family:'Oswald',sans-serif;font-size:.85rem;letter-spacing:.08em;
+  color:var(--gold);text-shadow:0 0 10px rgba(243,156,18,.5);
+  margin-bottom:10px;display:flex;align-items:center;gap:4px;
+}
+.llm-icon-btn{
+  width:60px;height:60px;
+  background:rgba(5,5,12,.82);border:2px solid rgba(255,255,255,.18);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:border-color .15s,background .15s;
+  position:relative;overflow:hidden;
+}
+.llm-icon-btn+.llm-icon-btn{border-top:none;}
+.llm-icon-btn:hover{border-color:var(--blood);background:rgba(192,57,43,.12);}
+.llm-icon-btn.active{border-color:var(--gold);background:rgba(243,156,18,.1);}
+.llm-icon-btn svg{width:30px;height:30px;opacity:.75;transition:opacity .15s;}
+.llm-icon-btn:hover svg,.llm-icon-btn.active svg{opacity:1;}
+.llm-icon-btn .llm-notif{
+  position:absolute;top:5px;right:5px;
+  width:7px;height:7px;border-radius:50%;
+  background:var(--blood);box-shadow:0 0 5px var(--blood);
+}
+
+/* ══ SHOP / INVENTORY MODAL ══ */
+#shopModal,#inventoryModal{
+  position:absolute;inset:0;z-index:200;
+  display:none;background:rgba(0,0,0,.72);
+  backdrop-filter:blur(4px);
+  font-family:'Share Tech Mono',monospace;
+  pointer-events:all;
+  align-items:center;
+  justify-content:center;
+}
+#shopModal.show,#inventoryModal.show{display:flex;}
+.store-modal-inner{
+  width:min(820px,92vw);height:min(580px,88vh);
+  display:flex;flex-direction:column;
+  background:rgba(6,4,14,.97);
+  border:1px solid rgba(255,255,255,.14);
+  box-shadow:0 0 60px rgba(0,0,0,.9),0 0 30px rgba(192,57,43,.08);
+  animation:shopIn .18s ease;
+}
+@keyframes shopIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+
+/* Top bar */
+.store-topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 20px;background:rgba(0,0,0,.6);
+  border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;
+}
+.store-topbar-title{
+  font-family:'Oswald',sans-serif;font-size:1rem;letter-spacing:.35em;
+  color:#fff;text-shadow:0 0 12px var(--blood);
+}
+.store-topbar-cd{
+  display:flex;flex-direction:column;align-items:center;
+  font-family:'Oswald',sans-serif;
+}
+.store-topbar-cd-lbl{font-size:.48rem;letter-spacing:.4em;color:var(--dim);}
+.store-topbar-cd-val{
+  font-size:1rem;color:var(--blood);border:1px solid rgba(192,57,43,.5);
+  padding:2px 12px;letter-spacing:.1em;min-width:60px;text-align:center;
+}
+.store-close-btn{
+  background:transparent;border:1px solid rgba(255,255,255,.2);
+  color:rgba(255,255,255,.6);font-family:'Share Tech Mono',monospace;
+  font-size:.65rem;letter-spacing:.2em;padding:6px 16px;cursor:pointer;
+  text-transform:uppercase;transition:border-color .15s,color .15s;
+}
+.store-close-btn:hover{border-color:var(--blood);color:var(--blood);}
+
+/* Main layout */
+.store-body{display:flex;flex:1;overflow:hidden;gap:0;}
+
+/* Left column — tabs + grid */
+.store-left{
+  display:flex;flex-direction:column;
+  width:65%;border-right:1px solid rgba(255,255,255,.07);
+}
+.store-tabs{
+  display:flex;border-bottom:1px solid rgba(255,255,255,.08);
+  flex-shrink:0;
+}
+.store-tab{
+  padding:9px 22px;background:transparent;
+  border:none;border-right:1px solid rgba(255,255,255,.06);
+  color:rgba(255,255,255,.45);font-family:'Share Tech Mono',monospace;
+  font-size:.65rem;letter-spacing:.18em;cursor:pointer;
+  text-transform:uppercase;transition:color .15s,background .15s;
+}
+.store-tab.active{
+  background:rgba(192,57,43,.15);color:#fff;
+  border-bottom:2px solid var(--blood);
+}
+.store-tab:hover:not(.active){color:rgba(255,255,255,.7);background:rgba(255,255,255,.04);}
+.store-search{
+  padding:8px 14px;background:#020208;border-bottom:1px solid rgba(255,255,255,.06);
+  display:flex;align-items:center;gap:8px;flex-shrink:0;
+}
+.store-search-icon{color:rgba(255,255,255,.3);font-size:.75rem;}
+.store-search input{
+  background:transparent;border:none;color:rgba(255,255,255,.7);
+  font-family:'Share Tech Mono',monospace;font-size:.7rem;letter-spacing:.1em;
+  outline:none;flex:1;
+}
+.store-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+  gap:8px;padding:14px;overflow-y:auto;flex:1;
+  align-content:start;
+}
+.store-grid::-webkit-scrollbar{width:4px;}
+.store-grid::-webkit-scrollbar-track{background:transparent;}
+.store-grid::-webkit-scrollbar-thumb{background:rgba(192,57,43,.4);}
+
+/* Character card */
+.store-card{
+  border:2px solid rgba(255,255,255,.12);background:rgba(10,8,18,.9);
+  cursor:pointer;transition:border-color .15s,transform .1s;
+  display:flex;flex-direction:column;position:relative;
+  aspect-ratio:3/4;overflow:hidden;
+}
+.store-card:hover{border-color:rgba(255,255,255,.45);transform:scale(1.02);}
+.store-card.selected{border-color:var(--gold);}
+.store-card-portrait{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(160deg,#0e0210 0%,#05050f 100%);
+  font-size:3.5rem;position:relative;overflow:hidden;
+}
+.store-card-portrait::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(to top,rgba(0,0,0,.8) 0%,transparent 50%);
+}
+.store-card-glow{
+  position:absolute;inset:0;opacity:.35;
+  background:radial-gradient(ellipse at 50% 60%,rgba(192,57,43,.7),transparent 70%);
+}
+.store-card-name{
+  font-family:'Oswald',sans-serif;font-size:.7rem;letter-spacing:.12em;
+  color:#fff;text-align:center;padding:4px 6px 2px;
+  background:rgba(0,0,0,.6);
+}
+.store-card-price{
+  font-size:.6rem;letter-spacing:.08em;color:var(--gold);
+  text-align:center;padding:2px 6px 6px;background:rgba(0,0,0,.6);
+}
+.store-card-price.owned{color:rgba(255,255,255,.5);}
+.store-card-price.free{color:var(--green);}
+.store-card-owned-badge{
+  position:absolute;top:6px;right:6px;
+  background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.3);
+  color:rgba(255,255,255,.6);font-size:.48rem;letter-spacing:.12em;
+  padding:2px 6px;text-transform:uppercase;
+}
+.store-card-equipped-badge{
+  position:absolute;top:6px;right:6px;
+  background:rgba(243,156,18,.2);border:1px solid var(--gold);
+  color:var(--gold);font-size:.48rem;letter-spacing:.12em;
+  padding:2px 6px;text-transform:uppercase;
+}
+.store-empty-msg{
+  grid-column:1/-1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:12px;padding:60px 20px;
+  color:rgba(255,255,255,.2);
+}
+.store-empty-msg .em-icon{font-size:2.5rem;opacity:.4;}
+.store-empty-msg .em-text{font-size:.62rem;letter-spacing:.25em;text-align:center;line-height:1.8;}
+
+/* Right panel */
+.store-right{
+  width:35%;display:flex;flex-direction:column;position:relative;
+}
+.store-right-empty{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:14px;color:rgba(255,255,255,.18);
+  font-size:.62rem;letter-spacing:.2em;text-align:center;
+}
+.store-detail{display:none;flex-direction:column;height:100%;}
+.store-detail.show{display:flex;}
+.store-detail-preview{
+  height:200px;background:linear-gradient(160deg,#12010e 0%,#05050f 100%);
+  display:flex;align-items:center;justify-content:center;
+  font-size:5rem;border-bottom:1px solid rgba(255,255,255,.07);
+  position:relative;overflow:hidden;flex-shrink:0;
+}
+.store-detail-preview-glow{
+  position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 80%,rgba(192,57,43,.4),transparent 65%);
+}
+.store-detail-info{padding:14px 16px;flex:1;overflow-y:auto;}
+.store-detail-info::-webkit-scrollbar{width:3px;}
+.store-detail-info::-webkit-scrollbar-thumb{background:rgba(192,57,43,.3);}
+.store-detail-name{
+  font-family:'Oswald',sans-serif;font-size:1.3rem;letter-spacing:.14em;
+  color:#fff;margin-bottom:2px;
+}
+.store-detail-author{font-size:.55rem;letter-spacing:.15em;color:rgba(255,255,255,.35);margin-bottom:8px;}
+.store-detail-tagline{font-size:.62rem;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-bottom:14px;line-height:1.6;}
+.store-detail-btns{display:flex;gap:8px;margin-bottom:14px;}
+.store-detail-btn{
+  flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.15);
+  color:rgba(255,255,255,.55);font-family:'Share Tech Mono',monospace;
+  font-size:.55rem;letter-spacing:.15em;padding:8px 10px;cursor:pointer;
+  text-transform:uppercase;transition:all .15s;text-align:center;
+}
+.store-detail-btn:hover{border-color:rgba(255,255,255,.45);color:#fff;}
+.store-stats-panel{
+  background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.07);
+  padding:10px 12px;margin-bottom:12px;
+}
+.store-stats-title{font-size:.48rem;letter-spacing:.35em;color:var(--dim);margin-bottom:8px;}
+.store-stat-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+.store-stat-lbl{font-size:.52rem;letter-spacing:.1em;color:rgba(255,255,255,.45);width:70px;flex-shrink:0;}
+.store-stat-bar{flex:1;height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;}
+.store-stat-fill{height:100%;border-radius:3px;}
+.store-ability-panel{
+  background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.06);padding:10px 12px;
+}
+.store-ability-title{font-size:.48rem;letter-spacing:.35em;color:var(--dim);margin-bottom:8px;}
+.store-ability-item{
+  display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;
+}
+.store-ability-key{
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+  font-size:.5rem;letter-spacing:.1em;color:rgba(255,255,255,.6);
+  padding:2px 6px;flex-shrink:0;font-family:'Oswald',sans-serif;
+}
+.store-ability-desc{font-size:.52rem;letter-spacing:.06em;color:rgba(255,255,255,.5);line-height:1.55;}
+
+/* Bottom: price + action */
+.store-action-bar{
+  padding:12px 16px;border-top:1px solid rgba(255,255,255,.08);
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(0,0,0,.5);flex-shrink:0;
+}
+.store-action-price{
+  font-family:'Oswald',sans-serif;font-size:1.2rem;
+  color:var(--gold);letter-spacing:.08em;
+}
+.store-action-price.free{color:var(--green);}
+.store-action-buy{
+  background:rgba(10,10,10,.9);border:2px solid rgba(255,255,255,.3);
+  color:#fff;font-family:'Oswald',sans-serif;font-size:.85rem;
+  letter-spacing:.2em;padding:10px 28px;cursor:pointer;
+  text-transform:uppercase;transition:all .15s;
+}
+.store-action-buy:hover{background:rgba(192,57,43,.2);border-color:var(--blood);}
+.store-action-buy.owned{border-color:rgba(255,255,255,.15);color:rgba(255,255,255,.4);cursor:default;background:transparent;}
+.store-action-buy.equip-btn{border-color:var(--gold);color:var(--gold);}
+.store-action-buy.equip-btn:hover{background:rgba(243,156,18,.15);}
+.store-action-buy.unequip-btn{border-color:rgba(52,152,219,.5);color:rgba(52,152,219,.8);}
+.store-action-buy.unequip-btn:hover{background:rgba(52,152,219,.1);}
+
+/* Money bar at bottom left of store */
+.store-money-bar{
+  position:absolute;bottom:0;left:0;
+  padding:8px 16px;font-family:'Oswald',sans-serif;
+  font-size:.85rem;letter-spacing:.08em;color:var(--gold);
+  display:flex;align-items:center;gap:6px;
+}
+
+/* Skins panel (inside detail) */
+.store-skins-panel{
+  display:none;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.07);
+  padding:10px 12px;margin-bottom:12px;
+}
+.store-skins-panel.show{display:block;}
+.store-skins-grid{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+.store-skin-slot{
+  width:48px;height:48px;border:1.5px solid rgba(255,255,255,.15);
+  background:rgba(255,255,255,.04);display:flex;align-items:center;
+  justify-content:center;font-size:1.2rem;cursor:pointer;
+  transition:border-color .12s;
+}
+.store-skin-slot:hover,.store-skin-slot.active{border-color:var(--gold);}
+
+/* Player list on right of shop */
+.store-players{
+  position:absolute;top:48px;right:0;width:200px;
+  background:rgba(0,0,0,.75);border-left:1px solid rgba(255,255,255,.07);
+  overflow-y:auto;max-height:50vh;
+}
+.store-players-header{
+  display:flex;justify-content:space-between;
+  padding:6px 10px;border-bottom:1px solid rgba(255,255,255,.07);
+  font-size:.5rem;letter-spacing:.2em;color:var(--dim);
+}
+.store-player-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:5px 10px;border-bottom:1px solid rgba(255,255,255,.04);
+  font-size:.6rem;letter-spacing:.06em;color:rgba(255,255,255,.65);
+}
+.store-player-row.me{color:#fff;background:rgba(192,57,43,.06);}
+.store-player-money{color:var(--gold);font-family:'Oswald',sans-serif;font-size:.65rem;}
+
+/* Settings panel (inside lobby, not modal) */
+#lobbySettingsPanel{
+  display:none;position:absolute;left:84px;top:50%;transform:translateY(-50%);
+  background:rgba(5,5,14,.95);border:1px solid rgba(255,255,255,.14);
+  padding:18px 22px;min-width:200px;z-index:70;pointer-events:all;
+}
+#lobbySettingsPanel.show{display:block;}
+.lsp-title{font-size:.55rem;letter-spacing:.38em;color:var(--dim);margin-bottom:14px;}
+.lsp-option{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:16px;margin-bottom:10px;
+}
+.lsp-option-lbl{font-size:.62rem;letter-spacing:.12em;color:rgba(255,255,255,.7);}
+.lsp-toggle{
+  position:relative;width:36px;height:18px;cursor:pointer;
+}
+.lsp-toggle input{opacity:0;width:0;height:0;}
+.lsp-toggle-track{
+  position:absolute;inset:0;background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.2);border-radius:9px;
+  transition:background .15s;
+}
+.lsp-toggle input:checked+.lsp-toggle-track{background:rgba(192,57,43,.7);border-color:var(--blood);}
+.lsp-toggle-thumb{
+  position:absolute;top:2px;left:2px;width:12px;height:12px;
+  background:#fff;border-radius:50%;transition:transform .15s;
+}
+.lsp-toggle input:checked~.lsp-toggle-thumb{transform:translateX(18px);}
 </style>
 </head>
 <body>
@@ -470,8 +828,12 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     </div>
     <input class="auth-field" id="authUser" type="text" maxlength="18" placeholder="USUARIO" autocomplete="username"
       oninput="this.value=this.value.replace(/[^a-zA-Z0-9_]/g,'')">
-    <input class="auth-field" id="authPass" type="password" maxlength="32" placeholder="CONTRASEÑA" autocomplete="current-password">
+    <div class="auth-pass-wrap">
+      <input class="auth-field" id="authPass" type="password" maxlength="32" placeholder="CONTRASEÑA" autocomplete="current-password">
+      <button class="auth-pass-eye" id="passEyeBtn" type="button" onclick="Auth.togglePassVis()" title="Mostrar/ocultar contraseña">👁</button>
+    </div>
     <label class="auth-remember"><input type="checkbox" id="rememberMe"> RECORDAR USUARIO</label>
+    <div class="fb-status" id="fbStatus">🔴 Conectando a la nube...</div>
     <div class="auth-msg" id="authMsg"></div>
     <button class="btn" id="authBtn" onclick="Auth.submit()"><span id="authBtnTxt">ENTRAR</span></button>
   </div>
@@ -548,11 +910,195 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     <div id="lobbyBottomBar">
       <div id="lobbyPlayerList"></div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <button class="lobby-btn" id="lobbyHitboxBtn" onclick="S.showHitbox=!S.showHitbox;this.classList.toggle('on',S.showHitbox);this.textContent=S.showHitbox?'⚙ HITBOX: ON':'⚙ HITBOX: OFF'" style="font-size:.6rem;">⚙ HITBOX: OFF</button>
         <button class="lobby-btn" onclick="MP.leaveRoom()">← SALIR</button>
       </div>
     </div>
     <div style="position:absolute;bottom:54px;left:50%;transform:translateX(-50%);font-size:.55rem;color:rgba(255,255,255,.28);letter-spacing:.18em;pointer-events:none;">WASD / ↑↓←→ PARA MOVERSE</div>
+
+    <!-- ══ LEFT LOBBY MENU ══ -->
+    <div id="lobbyLeftMenu">
+      <div id="llmMoney">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6.5" stroke="#f39c12" stroke-width="1"/><text x="7" y="10.5" text-anchor="middle" font-family="Oswald,sans-serif" font-size="7" fill="#f39c12">$</text></svg>
+        <span id="llmMoneyAmt">0</span>$
+      </div>
+      <!-- Shop -->
+      <button class="llm-icon-btn" id="llmShopBtn" onclick="Shop.open()" title="TIENDA">
+        <svg viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="15" cy="15" r="7" stroke="white" stroke-width="1.5"/>
+          <text x="15" y="19.5" text-anchor="middle" font-family="Oswald,sans-serif" font-size="9" fill="white">$</text>
+          <path d="M6 10h18M6 10L8 6h14l2 4" stroke="white" stroke-width="1.2"/>
+        </svg>
+      </button>
+      <!-- Inventory (backpack) -->
+      <button class="llm-icon-btn" id="llmInvBtn" onclick="Inventory.open()" title="INVENTARIO">
+        <svg viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="6" y="11" width="18" height="14" rx="1.5" stroke="white" stroke-width="1.5"/>
+          <path d="M11 11V9a4 4 0 0 1 8 0v2" stroke="white" stroke-width="1.5"/>
+          <rect x="12" y="16" width="6" height="3.5" rx="1" stroke="white" stroke-width="1.2"/>
+        </svg>
+      </button>
+      <!-- Settings (gear) -->
+      <button class="llm-icon-btn" id="llmSettBtn" onclick="LobbySettings.toggle()" title="AJUSTES">
+        <svg viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="15" cy="15" r="3.5" stroke="white" stroke-width="1.5"/>
+          <path d="M15 6v2M15 22v2M6 15h2M22 15h2M8.5 8.5l1.4 1.4M20.1 20.1l1.4 1.4M8.5 21.5l1.4-1.4M20.1 9.9l1.4-1.4" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Settings panel (appears to the right of gear btn) -->
+    <div id="lobbySettingsPanel">
+      <div class="lsp-title">AJUSTES</div>
+      <div class="lsp-option">
+        <span class="lsp-option-lbl">HITBOXES</span>
+        <label class="lsp-toggle">
+          <input type="checkbox" id="lobbyHitboxToggle" onchange="LobbySettings.setHitbox(this.checked)">
+          <span class="lsp-toggle-track"></span>
+          <span class="lsp-toggle-thumb"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- ══ SHOP MODAL ══ -->
+    <div id="shopModal">
+      <div class="store-modal-inner">
+      <div class="store-topbar">
+        <div class="store-topbar-title">FORSAKEN</div>
+        <div class="store-topbar-cd">
+          <div class="store-topbar-cd-lbl">LA RONDA COMIENZA EN:</div>
+          <div class="store-topbar-cd-val" id="shopCdVal">—</div>
+        </div>
+        <button class="store-close-btn" onclick="Shop.close()">✕ CERRAR</button>
+      </div>
+      <div class="store-body">
+        <!-- Left: tabs + grid -->
+        <div class="store-left">
+          <div class="store-tabs">
+            <button class="store-tab active" id="shopTabKillers" onclick="Shop.setTab('killers')">KILLERS</button>
+            <button class="store-tab" id="shopTabSurvivors" onclick="Shop.setTab('survivors')">SURVIVORS</button>
+          </div>
+          <div class="store-search">
+            <span class="store-search-icon">🔍</span>
+            <input type="text" placeholder="SEARCH" id="shopSearch" oninput="Shop.filter()">
+          </div>
+          <div class="store-grid" id="shopGrid"></div>
+        </div>
+        <!-- Right: detail -->
+        <div class="store-right">
+          <div class="store-right-empty" id="shopRightEmpty">
+            <div style="font-size:2rem;opacity:.3">🗡</div>
+            <div>Selecciona un personaje</div>
+          </div>
+          <div class="store-detail" id="shopDetail">
+            <div class="store-detail-preview" id="shopDetailPreview">
+              <div class="store-detail-preview-glow"></div>
+              <span id="shopDetailIcon">🗡</span>
+            </div>
+            <div class="store-detail-info">
+              <div class="store-detail-name" id="shopDetailName">—</div>
+              <div class="store-detail-author" id="shopDetailAuthor">Made By: —</div>
+              <div class="store-detail-tagline" id="shopDetailTagline"></div>
+              <div class="store-detail-btns">
+                <div class="store-detail-btn" onclick="Shop.toggleStats()">📖 STATS</div>
+                <div class="store-detail-btn" onclick="Shop.toggleSkins()">👕 SKINS</div>
+              </div>
+              <!-- Stats panel -->
+              <div class="store-stats-panel" id="shopStatsPanel" style="display:none">
+                <div class="store-stats-title">ESTADÍSTICAS</div>
+                <div id="shopStatsRows"></div>
+              </div>
+              <!-- Skins panel -->
+              <div class="store-skins-panel" id="shopSkinsPanel">
+                <div class="store-stats-title">SKINS</div>
+                <div class="store-skins-grid" id="shopSkinsGrid"></div>
+              </div>
+              <!-- Abilities -->
+              <div class="store-ability-panel" id="shopAbilityPanel">
+                <div class="store-ability-title">HABILIDADES</div>
+                <div id="shopAbilityRows"></div>
+              </div>
+            </div>
+            <div class="store-action-bar">
+              <div class="store-action-price" id="shopActionPrice">900$</div>
+              <button class="store-action-buy" id="shopActionBtn" onclick="Shop.doPurchase()">COMPRAR</button>
+            </div>
+          </div>
+          <!-- Money at bottom -->
+          <div class="store-money-bar">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6.5" stroke="#f39c12" stroke-width="1"/><text x="7" y="10.5" text-anchor="middle" font-family="Oswald,sans-serif" font-size="7" fill="#f39c12">$</text></svg>
+            <span id="shopMoneyDisplay">0</span>$
+          </div>
+        </div>
+      </div>
+      <!-- Player list top-right overlay -->
+      <div class="store-players" id="shopPlayerList">
+        <div class="store-players-header">
+          <span>JUGADORES</span><span>DINERO</span>
+        </div>
+        <div id="shopPlayerRows"></div>
+      </div>
+      </div><!-- /store-modal-inner -->
+    </div>
+
+    <!-- ══ INVENTORY MODAL ══ -->
+    <div id="inventoryModal">
+      <div class="store-modal-inner">
+      <div class="store-topbar">
+        <div class="store-topbar-title">INVENTARIO</div>
+        <div class="store-topbar-cd">
+          <div class="store-topbar-cd-lbl">LA RONDA COMIENZA EN:</div>
+          <div class="store-topbar-cd-val" id="invCdVal">—</div>
+        </div>
+        <button class="store-close-btn" onclick="Inventory.close()">✕ CERRAR</button>
+      </div>
+      <div class="store-body">
+        <div class="store-left">
+          <div class="store-tabs">
+            <button class="store-tab active" id="invTabKillers" onclick="Inventory.setTab('killers')">KILLERS</button>
+            <button class="store-tab" id="invTabSurvivors" onclick="Inventory.setTab('survivors')">SURVIVORS</button>
+          </div>
+          <div class="store-grid" id="invGrid"></div>
+        </div>
+        <div class="store-right">
+          <div class="store-right-empty" id="invRightEmpty">
+            <div style="font-size:2rem;opacity:.3">🎒</div>
+            <div>Selecciona un personaje</div>
+          </div>
+          <div class="store-detail" id="invDetail">
+            <div class="store-detail-preview">
+              <div class="store-detail-preview-glow"></div>
+              <span id="invDetailIcon">🗡</span>
+            </div>
+            <div class="store-detail-info">
+              <div class="store-detail-name" id="invDetailName">—</div>
+              <div class="store-detail-author" id="invDetailAuthor"></div>
+              <div class="store-detail-tagline" id="invDetailTagline"></div>
+              <div class="store-detail-btns">
+                <div class="store-detail-btn" onclick="Inventory.toggleStats()">📖 STATS</div>
+                <div class="store-detail-btn" onclick="Inventory.toggleSkins()">👕 MIS SKINS</div>
+              </div>
+              <div class="store-stats-panel" id="invStatsPanel" style="display:none">
+                <div class="store-stats-title">ESTADÍSTICAS</div>
+                <div id="invStatsRows"></div>
+              </div>
+              <div class="store-skins-panel" id="invSkinsPanel">
+                <div class="store-stats-title">MIS SKINS</div>
+                <div class="store-skins-grid" id="invSkinsGrid"></div>
+              </div>
+              <div class="store-ability-panel" id="invAbilityPanel">
+                <div class="store-ability-title">HABILIDADES</div>
+                <div id="invAbilityRows"></div>
+              </div>
+            </div>
+            <div class="store-action-bar">
+              <div class="store-action-price" id="invActionStatus"></div>
+              <button class="store-action-buy equip-btn" id="invActionBtn" onclick="Inventory.doEquip()">EQUIPAR</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div><!-- /store-modal-inner -->
+    </div>
   </div>
 
   <!-- Profile modal (inside lobby) -->
@@ -649,8 +1195,9 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
       <div id="hudGens">generadores: 0/5</div>
     </div>
     <div id="bloxyBuffBar">🥤 VELOCIDAD <span id="bloxySpeedRoman">II</span></div>
+    <div id="gbBuffBar">👻 INVIS IV · INDETECTABLE</div>
     <div id="hudAlivePanelWrap"></div>
-    <button id="hitboxToggleBtn" onclick="S.showHitbox=!S.showHitbox;this.classList.toggle('on',S.showHitbox);this.title=S.showHitbox?'Hitbox: ON':'Hitbox: OFF'">⚙</button>
+    <button id="hitboxToggleBtn" onclick="S.showHitbox=!S.showHitbox;this.classList.toggle('on',S.showHitbox);Stats.hitboxPref=S.showHitbox;Stats.save();const chk=document.getElementById('lobbyHitboxToggle');if(chk)chk.checked=S.showHitbox;">⚙</button>
     <div id="hudBottomBar">
       <div id="hudVitals">
         <div id="bleedWrap"><div class="bleed-dot"></div><div class="bleed-txt">SANGRANDO</div></div>
@@ -717,8 +1264,25 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
           </div>
           <div class="ability-key">E (sin gen)</div>
         </div>
+        <div class="ability-slot" id="abilityGBSlot" style="display:none">
+          <div class="ability-name" id="gbName">GHOST BURGER</div>
+          <div class="ability-icon-wrap" id="abilityGBWrap">
+            <div class="ability-cd-overlay" id="abilityGBOverlay"></div>
+            <div class="ability-icon-emoji">👻</div>
+            <div class="ability-cd-num" id="abilityGBNum" style="display:none"></div>
+          </div>
+          <div class="ability-key">R</div>
+        </div>
+        <div class="ability-slot" id="abilityEnrageSlot" style="display:none">
+          <div class="ability-name" id="enrageName">ENRAGED</div>
+          <div class="ability-icon-wrap" id="abilityEnrageWrap">
+            <div class="ability-cd-overlay" id="abilityEnrageOverlay"></div>
+            <div class="ability-icon-emoji" id="enrageEmoji">😡</div>
+            <div class="ability-cd-num" id="abilityEnrageNum" style="display:none"></div>
+          </div>
+          <div class="ability-key">R</div>
+        </div>
       </div>
-      <div id="hudVitalsRight"></div>
     </div>
   </div>
 
@@ -770,57 +1334,142 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 // ══════════════════════════════════════════
 //  AUTH & STATS
 // ══════════════════════════════════════════
-// ── PERSISTENT STORAGE (survives file re-downloads) ──
-// Uses window.storage (Anthropic artifact storage) with localStorage fallback.
-// Key is fixed 'forsaken_db' — not tied to file path or version.
+// ══════════════════════════════════════════
+//  FIREBASE CONFIG — RELLENA CON TU PROYECTO
+//  1) Crea un proyecto en https://console.firebase.google.com
+//  2) Activa "Realtime Database" y pon las reglas en modo prueba
+//  3) Copia tu configuración aquí abajo
+// ══════════════════════════════════════════
+const FB_CONFIG = {
+  apiKey:            "FILL_API_KEY",
+  authDomain:        "FILL_PROJECT_ID.firebaseapp.com",
+  databaseURL:       "https://FILL_PROJECT_ID-default-rtdb.firebaseio.com",
+  projectId:         "FILL_PROJECT_ID",
+  storageBucket:     "FILL_PROJECT_ID.appspot.com",
+  messagingSenderId: "FILL_SENDER_ID",
+  appId:             "FILL_APP_ID"
+};
+
+let _fbDb = null;
+let _fbReady = false;
+
+function _initFirebase(){
+  if(_fbDb) return _fbDb;
+  // Guard: skip if Firebase SDK didn't load
+  if(typeof firebase === 'undefined'){
+    const el=document.getElementById('fbStatus');
+    if(el){el.textContent='🟡 Modo local (sin nube)';el.style.color='var(--gold)';}
+    return null;
+  }
+  // Guard: skip if credentials haven't been filled in yet
+  if(FB_CONFIG.apiKey.startsWith('FILL_') || FB_CONFIG.databaseURL.includes('FILL_')){
+    const el=document.getElementById('fbStatus');
+    if(el){el.textContent='🟡 Modo local (configura Firebase)';el.style.color='var(--gold)';}
+    return null;
+  }
+  try{
+    if(!firebase.apps.length) firebase.initializeApp(FB_CONFIG);
+    _fbDb = firebase.database();
+    _fbReady = true;
+    const el=document.getElementById('fbStatus');
+    if(el){el.textContent='🟢 Nube conectada';el.style.color='var(--green)';}
+    return _fbDb;
+  }catch(e){
+    console.warn('Firebase init error:',e);
+    const el=document.getElementById('fbStatus');
+    if(el){el.textContent='🟡 Modo local (sin nube)';el.style.color='var(--gold)';}
+    return null;
+  }
+}
+
+// ── PERSISTENT STORAGE (Firebase + localStorage fallback) ──
 const PersistDB={
-  _UKEY:'forsaken_users_v1',
   _RKEY:'forsaken_remember_v1',
   _cache:null,
-  async _load(){
-    // Try window.storage first (artifact persistent storage)
-    if(typeof window.storage!=='undefined'){
+
+  // Carga datos de UN usuario específico desde Firebase
+  async loadUser(userKey){
+    const db=_initFirebase();
+    if(db){
       try{
-        const r=await window.storage.get(this._UKEY);
-        const data=r?JSON.parse(r.value):{};
-        // Merge with localStorage in case there's older data there
-        try{const loc=JSON.parse(localStorage.getItem('fsk_users')||'{}');Object.assign(data,loc);}catch(e){}
-        this._cache=data;return data;
-      }catch(e){}
+        const snap=await db.ref('users/'+userKey).once('value');
+        const data=snap.val();
+        if(!this._cache)this._cache={};
+        if(data){this._cache[userKey]=data;return data;}
+      }catch(e){console.warn('Firebase loadUser:',e);}
     }
-    // Fallback: localStorage
-    try{this._cache=JSON.parse(localStorage.getItem('fsk_users')||'{}');return this._cache;}catch(e){this._cache={};return {};}
+    // Fallback localStorage
+    try{
+      const loc=JSON.parse(localStorage.getItem('fsk_users')||'{}');
+      if(!this._cache)this._cache={};
+      Object.assign(this._cache,loc);
+      return this._cache[userKey]||null;
+    }catch(e){return null;}
   },
-  async _store(db){
-    this._cache=db;
-    const str=JSON.stringify(db);
-    if(typeof window.storage!=='undefined'){
-      try{await window.storage.set(this._UKEY,str);}catch(e){}
+
+  // Verifica si un nombre de usuario YA existe en la nube global
+  async usernameExists(userKey){
+    const db=_initFirebase();
+    if(db){
+      try{
+        const snap=await db.ref('users/'+userKey+'/user').once('value');
+        return snap.exists();
+      }catch(e){console.warn('Firebase usernameExists:',e);}
     }
-    try{localStorage.setItem('fsk_users',str);}catch(e){}
+    // Fallback: solo localStorage
+    try{
+      const loc=JSON.parse(localStorage.getItem('fsk_users')||'{}');
+      return !!loc[userKey];
+    }catch(e){return false;}
   },
-  async getRemember(){
-    if(typeof window.storage!=='undefined'){
-      try{const r=await window.storage.get(this._RKEY);if(r)return r.value;}catch(e){}
+
+  // Guarda los datos de un usuario en Firebase Y localStorage
+  async saveUser(userKey,data){
+    if(!this._cache)this._cache={};
+    this._cache[userKey]=data;
+    const db=_initFirebase();
+    if(db){
+      try{
+        await db.ref('users/'+userKey).set(data);
+      }catch(e){console.warn('Firebase saveUser:',e);}
     }
-    return localStorage.getItem('fsk_remember');
+    // Siempre también guardar local por si no hay conexión
+    try{
+      const loc=JSON.parse(localStorage.getItem('fsk_users')||'{}');
+      loc[userKey]=data;
+      localStorage.setItem('fsk_users',JSON.stringify(loc));
+    }catch(e){}
   },
-  async setRemember(user){
-    if(typeof window.storage!=='undefined'){try{await window.storage.set(this._RKEY,user);}catch(e){}}
-    try{localStorage.setItem('fsk_remember',user);}catch(e){}
-  },
-  async clearRemember(){
-    if(typeof window.storage!=='undefined'){try{await window.storage.delete(this._RKEY);}catch(e){}}
-    try{localStorage.removeItem('fsk_remember');}catch(e){}
-  },
+
+  _db(){return this._cache||{};},
+
+  async getRemember(){return localStorage.getItem(this._RKEY);},
+  async setRemember(user){localStorage.setItem(this._RKEY,user);},
+  async clearRemember(){localStorage.removeItem(this._RKEY);},
 };
 
 const Auth={
   _tab:'login',
   _dbLoaded:false,
   _db(){return PersistDB._cache||{};},
-  async _ensureDB(){if(!this._dbLoaded){await PersistDB._load();this._dbLoaded=true;}},
-  _save(db){PersistDB._store(db);},
+  async _ensureDB(){/* no-op — loads happen per-user now */},
+  _save(db){/* individual saves handled via Stats.save() → PersistDB.saveUser() */},
+
+  // Mostrar/ocultar contraseña
+  togglePassVis(){
+    const inp=document.getElementById('authPass');
+    const btn=document.getElementById('passEyeBtn');
+    if(inp.type==='password'){
+      inp.type='text';
+      btn.textContent='🙈';
+      btn.title='Ocultar contraseña';
+    } else {
+      inp.type='password';
+      btn.textContent='👁';
+      btn.title='Mostrar contraseña';
+    }
+  },
+
   switchTab(t){
     this._tab=t;
     document.getElementById('tabLogin').classList.toggle('active',t==='login');
@@ -828,31 +1477,43 @@ const Auth={
     document.getElementById('authBtnTxt').textContent=t==='login'?'ENTRAR':'CREAR CUENTA';
     document.getElementById('authMsg').textContent='';
     document.getElementById('authMsg').className='auth-msg';
+    // Restablecer visibilidad de contraseña al cambiar de tab
+    const inp=document.getElementById('authPass');
+    const btn=document.getElementById('passEyeBtn');
+    if(inp){inp.type='password';}
+    if(btn){btn.textContent='👁';}
   },
   msg(txt,ok){
     const el=document.getElementById('authMsg');
     el.textContent=txt;el.className='auth-msg '+(ok?'ok':'err');
   },
   async submit(){
-    await this._ensureDB();
     const user=document.getElementById('authUser').value.trim();
     const pass=document.getElementById('authPass').value;
     if(!user||user.length<2){this.msg('Usuario muy corto (mín 2 chars)');return;}
     if(!pass||pass.length<4){this.msg('Contraseña muy corta (mín 4 chars)');return;}
-    const db=this._db();
+    const userKey=user.toLowerCase();
+
     if(this._tab==='register'){
-      if(db[user.toLowerCase()]){this.msg('Ese usuario ya existe — inicia sesión');return;}
-      db[user.toLowerCase()]={user,pass,timePlayed:0,survWins:0,killWins:0,malicia:0};
-      this._save(db);
-      Stats.load(user.toLowerCase());
+      // Verificar en la NUBE si el nombre ya existe
+      this.msg('🔍 Verificando nombre en la nube...',true);
+      const exists=await PersistDB.usernameExists(userKey);
+      if(exists){this.msg('Ese usuario ya existe — inicia sesión');return;}
+      // Crear nueva cuenta
+      const newAcc={user,pass,timePlayed:0,survWins:0,killWins:0,malicia:0,coins:100,ownedKillers:[],ownedSurvivors:[],equippedKiller:'',equippedSurvivor:'',hitboxPref:false};
+      this.msg('☁ Guardando cuenta en la nube...',true);
+      await PersistDB.saveUser(userKey,newAcc);
+      Stats.load(userKey);
       this._handleRemember(user);
       this.msg('¡Cuenta creada! Entrando...',true);
       setTimeout(()=>UI.show('s-menu'),900);
     } else {
-      const acc=db[user.toLowerCase()];
+      // Login: cargar datos desde Firebase
+      this.msg('☁ Cargando tu progreso...',true);
+      const acc=await PersistDB.loadUser(userKey);
       if(!acc){this.msg('Usuario no encontrado — ¿crear cuenta?');return;}
       if(acc.pass!==pass){this.msg('Contraseña incorrecta');return;}
-      Stats.load(user.toLowerCase());
+      Stats.load(userKey);
       this._handleRemember(user);
       this.msg('¡Bienvenido de vuelta, '+acc.user+'!',true);
       setTimeout(()=>{UI.show('s-menu');Auth.updateLogoutBtn();},700);
@@ -870,6 +1531,8 @@ const Auth={
     Stats._key=null;Stats.username='';
     document.getElementById('authUser').value='';
     document.getElementById('authPass').value='';
+    document.getElementById('authPass').type='password';
+    document.getElementById('passEyeBtn').textContent='👁';
     document.getElementById('authMsg').textContent='';
     document.getElementById('authMsg').className='auth-msg';
     Net.cleanup();
@@ -880,19 +1543,17 @@ const Auth={
     if(btn&&Stats.username)btn.textContent='🚪 CERRAR SESIÓN ('+Stats.username+')';
   },
   async loadRemember(){
-    // First load the DB from persistent storage
-    await PersistDB._load();
-    Auth._dbLoaded=true;
+    // Inicializar Firebase inmediatamente
+    _initFirebase();
     const saved=await PersistDB.getRemember();
     if(saved){
       const el=document.getElementById('authUser');
       if(el)el.value=saved;
       const cb=document.getElementById('rememberMe');
       if(cb)cb.checked=true;
-      // Auto-login if remember is set and account exists
-      const db=Auth._db();
-      if(db[saved.toLowerCase()]){
-        const acc=db[saved.toLowerCase()];
+      // Auto-login: cargar datos del usuario guardado desde Firebase
+      const acc=await PersistDB.loadUser(saved.toLowerCase());
+      if(acc){
         Stats.load(saved.toLowerCase());
         Auth.updateLogoutBtn();
         setTimeout(()=>UI.show('s-menu'),100);
@@ -913,6 +1574,12 @@ const Stats={
     this.killWins=acc.killWins||0;
     this.malicia=acc.malicia||0;
     this.username=acc.user||key;
+    this.coins=acc.coins!==undefined?acc.coins:100;
+    this.ownedKillers=acc.ownedKillers||['slasher'];
+    this.ownedSurvivors=acc.ownedSurvivors||['noob'];
+    this.equippedKiller=acc.equippedKiller||'';
+    this.equippedSurvivor=acc.equippedSurvivor||'';
+    this.hitboxPref=acc.hitboxPref||false;
   },
   save(){
     if(!this._key)return;
@@ -922,7 +1589,14 @@ const Stats={
     db[this._key].survWins=this.survWins;
     db[this._key].killWins=this.killWins;
     db[this._key].malicia=this.malicia||0;
-    Auth._save(db);
+    db[this._key].coins=this.coins!==undefined?this.coins:100;
+    db[this._key].ownedKillers=Array.from(new Set(['slasher',...(this.ownedKillers||[])]));
+    db[this._key].ownedSurvivors=Array.from(new Set(['noob',...(this.ownedSurvivors||[])]));
+    db[this._key].equippedKiller=this.equippedKiller||'';
+    db[this._key].equippedSurvivor=this.equippedSurvivor||'';
+    db[this._key].hitboxPref=this.hitboxPref||false;
+    // Guardar en Firebase (async, no bloquea)
+    PersistDB.saveUser(this._key, db[this._key]);
   },
   startSession(){this._session.start=Date.now();},
   tickSession(){
@@ -939,6 +1613,11 @@ const Stats={
   addWin(role){
     if(role==='killer')this.killWins++;else this.survWins++;
     this.save();
+  },
+  addCoins(n){
+    this.coins=(this.coins||0)+n;
+    this.save();
+    Economy.updateDisplays();
   },
   addMalicia(n){
     this.malicia=Math.max(0,(this.malicia||0)+n);
@@ -983,19 +1662,33 @@ const SS_DRINK_DUR = 0.6;   // duración de la animación de beber (40% lentitud
 const SS_SPEED_BONUS_II = 1.30; // Speed II si dura hasta expirar (+30%)
 const SS_SPEED_I = 1.15;        // Speed I si se cancela manualmente (+15%)
 const SS_SPEED_DUR = 2;         // duración del bonus de velocidad post-efecto
+// ── Habilidad R del Survivor (Noob): GHOST BURGER ──
+const GB_CD = 45;           // cooldown en segundos
+const GB_DUR = 10;          // duración del efecto (invisibilidad + indetectable)
+const GB_EAT_DUR = 1.2;     // duración de la animación de comer (40% lentitud, sin sprint)
+const GB_INVIS_ALPHA = 0.28; // Invisibilidad IV — alpha visible para el killer (no completa, esa es nivel 6)
+
 // ── Habilidad Q del Killer: BEHEAD ──
 const Q_CD = 18;           // cooldown en segundos
-const Q_CD_ENRAGED = 18;   // [ENRAGED] stub — sin cambio aún
+const Q_CD_ENRAGED = 12;   // [ENRAGED] cooldown reducido
 const Q_DASH_DUR = 0.2;
 const Q_DASH_MULT = 2.0;
 const Q_DMG = 20;
-const Q_DMG_ENRAGED = 20;  // [ENRAGED] stub
+const Q_DMG_ENRAGED = 35;  // [ENRAGED] daño aumentado
 const Q_HB_SIZE = HB_W*0.85/0.75;  // Behead hitbox −15% from original (HB_W already has ×0.75 applied)
 const Q_HELPLESS_DUR = 4;
 
 // ── Habilidad M1 del Killer: TAJO ──
-const M1_CD_ENRAGED = M1_CD * 0.8; // [ENRAGED] stub — CD reducido 20%
-const M1_DMG_ENRAGED = M1_DMG;     // [ENRAGED] stub
+const M1_CD_ENRAGED = 0.8; // [ENRAGED] cooldown absoluto
+const M1_DMG_ENRAGED = 25; // [ENRAGED] daño aumentado
+
+// ── Habilidad R del Killer: ENRAGED ──
+const ENRAGE_CD = 30;          // cooldown en segundos
+const ENRAGE_DUR = 14;         // duración del estado
+const ENRAGE_SPEED = 110;      // velocidad plana durante ENRAGED (px/s, ~19 studs/s)
+const ENRAGE_STAM_CAP = 70;    // stamina máxima al final del cap
+const ENRAGE_STAM_CAP_DUR = 6.5; // tiempo para alcanzar el cap
+const ENRAGE_AURA_LINGER = 2;  // segundos que el aura permanece tras terminar ENRAGED
 
 // ── Habilidad E del Killer: COMBO (2 tajos + motosierra) ──
 const COMBO_CD = 32;          // cooldown normal
@@ -1108,26 +1801,40 @@ function buildMap(){
     for(let y=y1;y<=y2;y++) if(m[y][x]===0) m[y][x]=4;
   });
 
-  // ── GENERATORS (5) ──
-  const genSpots=[[2,4],[62,4],[2,39],[62,39],[32,8]];
+  // ── GENERATORS (5) — distribuidos por todo el mapa, no en esquinas ──
+  // Top-left zone (pasillo interior), Top-right zone, Centro, Bottom-left zone, Bottom-right zone
+  const genSpots=[[10,12],[53,12],[32,22],[11,33],[52,33]];
   genSpots.forEach(([gx,gy])=>{ if(m[gy][gx]===0) m[gy][gx]=2; });
-
-  // ── EXIT — left border wall, center height ──
-  m[22][1]=3;   // exit is in the left border wall
 
   return m;
 }
 const BASE_MAP=buildMap();
 const GEN_SPAWNS=[],SPAWN_SPOTS=[];
-let EXIT_POS={x:1,y:22};
 for(let y=0;y<MAP_H;y++) for(let x=0;x<MAP_W;x++){
   if(BASE_MAP[y][x]===2) GEN_SPAWNS.push({x,y});
-  else if(BASE_MAP[y][x]===3) EXIT_POS={x,y};
 }
 const SPAWN_DEFS=[
   {x:8,y:5},{x:56,y:5},{x:8,y:40},{x:56,y:40},
   {x:20,y:6},{x:44,y:6},{x:4,y:16},{x:59,y:16},
 ];
+
+// Returns a safe spawn position (tile coords) that isn't inside a wall
+function safeTileSpawn(tx,ty){
+  const r=TILE*.28;
+  const px=tx*TILE+TILE/2,py=ty*TILE+TILE/2;
+  if(!wallAt(px,py,r))return{x:tx,y:ty};
+  // Search nearby open tiles in expanding rings
+  for(let ring=1;ring<=4;ring++){
+    for(let dy=-ring;dy<=ring;dy++)for(let dx=-ring;dx<=ring;dx++){
+      if(Math.abs(dx)!==ring&&Math.abs(dy)!==ring)continue;
+      const nx=tx+dx,ny=ty+dy;
+      if(nx<1||ny<1||nx>=MAP_W-1||ny>=MAP_H-1)continue;
+      const npx=nx*TILE+TILE/2,npy=ny*TILE+TILE/2;
+      if(!wallAt(npx,npy,r))return{x:nx,y:ny};
+    }
+  }
+  return{x:tx,y:ty}; // fallback
+}
 
 // ══════════════════════════════════════════
 //  STATE
@@ -1163,8 +1870,8 @@ let slashFX=[];
 //  INPUT
 // ══════════════════════════════════════════
 const Inp={
-  k:{},e:false,ep:false,sh:false,m1:false,m1p:false,q:false,qp:false,facing:0,
-  clear(){this.k={};this.e=false;this.ep=false;this.sh=false;this.m1=false;this.m1p=false;this.q=false;this.qp=false;},
+  k:{},e:false,ep:false,sh:false,m1:false,m1p:false,q:false,qp:false,r:false,rp:false,facing:0,
+  clear(){this.k={};this.e=false;this.ep=false;this.sh=false;this.m1=false;this.m1p=false;this.q=false;this.qp=false;this.r=false;this.rp=false;},
   init(){
     document.addEventListener('keydown',ev=>{
       if(ev.target.tagName==='INPUT'||ev.target.tagName==='TEXTAREA')return;
@@ -1172,6 +1879,7 @@ const Inp={
       this.k[k]=true;
       if(k==='e')this.e=true;
       if(k==='q')this.q=true;
+      if(k==='r')this.r=true;
       if(k==='shift')this.sh=true;
       if(['arrowup','arrowdown','arrowleft','arrowright','e',' '].includes(k))ev.preventDefault();
     });
@@ -1181,6 +1889,7 @@ const Inp={
       this.k[k]=false;
       if(k==='e')this.e=false;
       if(k==='q')this.q=false;
+      if(k==='r')this.r=false;
       if(k==='shift')this.sh=false;
     });
     document.addEventListener('mousemove',ev=>{
@@ -1254,6 +1963,8 @@ const UI={
     UI.show('s-lobby');
     LobbyWorld.init();
     UI.renderLobbyPlayers();
+    Economy.updateDisplays();
+    LobbySettings.loadHitbox();
     // Ensure keyboard input works in lobby
     setTimeout(()=>{document.getElementById('s-lobby').focus();},50);
   },
@@ -1308,6 +2019,10 @@ const UI={
     const el=document.getElementById('lobbyCDBig');
     el.textContent=v>0?v:'¡YA!';
     el.className=v<=10&&v>0?'urgent':'';
+    // Sync to open store modals
+    const cdTxt=v>0?String(v):'¡YA!';
+    const sc=document.getElementById('shopCdVal');if(sc)sc.textContent=cdTxt;
+    const ic=document.getElementById('invCdVal');if(ic)ic.textContent=cdTxt;
   },
 
   updateHUD(){
@@ -1375,6 +2090,28 @@ const UI={
       const comboSlot=document.getElementById('abilityComboSlot');if(comboSlot)comboSlot.style.display='flex';
       const ssSlotK=document.getElementById('abilitySSSlot');if(ssSlotK)ssSlotK.style.display='none';
       const bSlotK=document.getElementById('abilityBloxySlot');if(bSlotK)bSlotK.style.display='none';
+      const gbSlotKiller=document.getElementById('abilityGBSlot');if(gbSlotKiller)gbSlotKiller.style.display='none';
+      // ENRAGED (R)
+      const enrageSlot=document.getElementById('abilityEnrageSlot');
+      if(enrageSlot)enrageSlot.style.display='flex';
+      const erCd=me.enrageCd||0;
+      const erActive=me.enraged||false;
+      const erCdMax=ENRAGE_CD;
+      const erPct=erCd>0&&!erActive?erCd/erCdMax:0;
+      const erOverlay=document.getElementById('abilityEnrageOverlay');
+      if(erOverlay)erOverlay.style.transform=`scaleY(${erPct})`;
+      const erWrap=document.getElementById('abilityEnrageWrap');
+      if(erWrap)erWrap.className='ability-icon-wrap'+(erActive?' enraged-active':erPct>0?' on-cd':' ready');
+      const erNum=document.getElementById('abilityEnrageNum');
+      const erEmoji=document.getElementById('enrageEmoji');
+      if(erNum){
+        erNum.style.display=(erPct>0||erActive)?'flex':'none';
+        if(erActive)erNum.textContent=me.enrageTimer?me.enrageTimer.toFixed(1):'';
+        else if(erPct>0)erNum.textContent=Math.ceil(erCd)+'s';
+      }
+      if(erEmoji)erEmoji.textContent=erActive?'🔥':'😡';
+      const erLabel=document.getElementById('enrageName');
+      if(erLabel)erLabel.textContent=erActive?'🔥 ENRAGED':'ENRAGED';
       const cdPct=me.m1Cd>0?me.m1Cd/M1_CD:0;
       document.getElementById('abilityM1Overlay').style.transform=`scaleY(${cdPct})`;
       document.getElementById('abilityM1Wrap').className='ability-icon-wrap'+(cdPct>0?' on-cd':' ready');
@@ -1411,6 +2148,7 @@ const UI={
       m1Slot.style.display='none';
       beheadSlot.style.display='none';
       const comboSlotS=document.getElementById('abilityComboSlot');if(comboSlotS)comboSlotS.style.display='none';
+      const enrageSlotS=document.getElementById('abilityEnrageSlot');if(enrageSlotS)enrageSlotS.style.display='none';
       // ── Bloxy Cola (Q) ──
       const bloxySlot=document.getElementById('abilityBloxySlot');
       if(bloxySlot)bloxySlot.style.display='flex';
@@ -1438,6 +2176,21 @@ const UI={
       else if(ssCdPct>0)ssNum.textContent=Math.ceil(me.ssCd)+'s';
       const ssLabel=document.getElementById('ssName');
       if(ssLabel)ssLabel.textContent=isSSDrinking?'🧪 BEBIENDO...':(isSSActive?'SLATESKIN II':(isSSSpeed?'⚡ VEL. ACTIVA':'SLATE SKIN'));
+      // ── Ghost Burger (R) ──
+      const gbSlot=document.getElementById('abilityGBSlot');
+      if(gbSlot)gbSlot.style.display='flex';
+      const gbCdPct=me.gbCd>0?me.gbCd/GB_CD:0;
+      const isGBEating=me.gbEating||false;
+      const isGBActive=me.gbActive||false;
+      document.getElementById('abilityGBOverlay').style.transform=`scaleY(${gbCdPct})`;
+      document.getElementById('abilityGBWrap').className='ability-icon-wrap'+(isGBActive?'ready':isGBEating?'ready':gbCdPct>0?' on-cd':' ready');
+      const gbNum=document.getElementById('abilityGBNum');
+      gbNum.style.display=(gbCdPct>0||isGBEating||isGBActive)?'flex':'none';
+      if(isGBEating)gbNum.textContent='🍔';
+      else if(isGBActive)gbNum.textContent=me.gbTimer?me.gbTimer.toFixed(1):'';
+      else if(gbCdPct>0)gbNum.textContent=Math.ceil(me.gbCd)+'s';
+      const gbLabel=document.getElementById('gbName');
+      if(gbLabel)gbLabel.textContent=isGBEating?'👻 COMIENDO...':(isGBActive?'👻 INVIS IV':'GHOST BURGER');
     }
     // Bloxy buff bar
     const bbBar=document.getElementById('bloxyBuffBar');
@@ -1446,6 +2199,14 @@ const UI={
       document.getElementById('bloxySpeedRoman').textContent=S.lms?'I':'II';
     } else {
       bbBar.classList.remove('show');
+    }
+    // Ghost Burger buff bar
+    const gbBar=document.getElementById('gbBuffBar');
+    if(me.role==='survivor'&&(me.gbActive||me.gbEating)){
+      gbBar.classList.add('show');
+      gbBar.textContent=me.gbEating?'👻 COMIENDO GHOST BURGER...':'👻 INVIS IV · INDETECTABLE';
+    } else {
+      gbBar.classList.remove('show');
     }
   },
 
@@ -1456,8 +2217,6 @@ const UI={
     if(me.role==='killer'){
       // no prompt needed for killer
     } else {
-      const ec={x:W.exit.x*TILE+TILE/2,y:W.exit.y*TILE+TILE/2};
-      if(W.exit.open&&dst(me,ec)<TILE*1.8){document.getElementById('pEsc').style.display='block';return;}
       if(!me.interacting&&W.gens.some(g=>!g.on&&dst(me,{x:g.x*TILE+TILE/2,y:g.y*TILE+TILE/2})<TILE*1.6))
         document.getElementById('pDo').style.display='block';
     }
@@ -1627,6 +2386,10 @@ const LobbyWorld={
   },
   update(dt){
     const p=S.lobbyP;
+    // Block movement when shop or inventory is open
+    const shopOpen=document.getElementById('shopModal').classList.contains('show');
+    const invOpen=document.getElementById('inventoryModal').classList.contains('show');
+    if(shopOpen||invOpen)return;
     let dx=0,dy=0;
     if(Inp.k['w']||Inp.k['arrowup'])dy=-1;
     if(Inp.k['s']||Inp.k['arrowdown'])dy=1;
@@ -2429,6 +3192,8 @@ const Net={
         p.ePrev=d.e;
         if(d.q&&!p.qPrev)Game.doQ(d.pid);
         p.qPrev=d.q;
+        if(d.r&&!p.rPrev)Game.doR(d.pid);
+        p.rPrev=d.r;
       }
 
     } else if(d.t==='lobbyPos'){
@@ -2547,19 +3312,41 @@ const Net={
 // ══════════════════════════════════════════
 //  M1 SLASH
 // ══════════════════════════════════════════
+// Cancela ENRAGED al usar un ataque — aura queda en linger
+function breakEnrage(p){
+  if(!p||!p.enraged)return;
+  p.enraged=false;
+  p.enrageTimer=0;
+  p.maxStamina=KSMAX;
+  p.enrageAuraLinger=ENRAGE_AURA_LINGER;
+  p.enrageStamCapTimer=0;
+}
+
 function fireM1(killerPid){
   const k=W.players[killerPid];
   if(!k||!k.alive||k.role!=='killer'||k.m1Cd>0)return;
-  k.m1Cd=M1_CD;
+  const enraged=k.enraged||false;
+  breakEnrage(k); // ENRAGED termina al atacar
+  k.m1Cd=enraged?M1_CD_ENRAGED:M1_CD;
+  // ENRAGED lunge: push killer forward before slashes
+  if(enraged){
+    const lungeDist=TILE*1.8;
+    const lax=Math.cos(k.facing)*lungeDist,lay=Math.sin(k.facing)*lungeDist;
+    const r=TILE*.28;
+    if(!wallAt(k.x+lax,k.y,r,'killer'))k.x+=lax;
+    if(!wallAt(k.x,k.y+lay,r,'killer'))k.y+=lay;
+  }
+  const dmg=enraged?M1_DMG_ENRAGED:M1_DMG;
   for(let i=0;i<M1_SLASHES;i++){
     setTimeout(()=>{
       if(!S.running)return;
       const fk=W.players[killerPid];if(!fk||!fk.alive)return;
-      doSlashHit(killerPid,fk.facing,i);
+      doSlashHit(killerPid,fk.facing,i,dmg);
     },i*M1_DELAY*1000);
   }
 }
-function doSlashHit(killerPid,ang,slashIdx){
+function doSlashHit(killerPid,ang,slashIdx,dmg){
+  dmg=dmg||M1_DMG;
   const k=W.players[killerPid];if(!k||!k.alive)return;
   const cx=k.x+Math.cos(ang)*(HB_OFFSET+HB_H/2);
   const cy=k.y+Math.sin(ang)*(HB_OFFSET+HB_H/2);
@@ -2571,7 +3358,7 @@ function doSlashHit(killerPid,ang,slashIdx){
     if(k.m1HitSet.has(s.id))return;
     if(pointInRotRect(s.x,s.y,cx,cy,HB_W/2,HB_H/2,ang)){
       k.m1HitSet.add(s.id);
-      s.hp=s.hp-M1_DMG;
+      s.hp=s.hp-dmg;
       if(s.hp<=0){s.hp=0;s.alive=false;s.bleedTicks=0;
         if(S.isHost){W.time=Math.min(W.time+KILL_TIME_BONUS,GAME_DUR*2);}
       }
@@ -2596,10 +3383,21 @@ const Game={
     const killerPick=topPlayers[Math.floor(Math.random()*topPlayers.length)];
     const killerIdx=plist.indexOf(killerPick);
     const roles={},spawns={};
-    const shuffledSpawns=[...SPAWN_DEFS].sort(()=>Math.random()-.5);
+    // Killer spawns in center area; survivors spread to corners/edges
+    const killerSpawnPool=[{x:32,y:22},{x:30,y:20},{x:34,y:24},{x:28,y:22},{x:36,y:22}];
+    const survivorSpawnPool=[...SPAWN_DEFS].sort(()=>Math.random()-.5);
+    let survIdx=0;
     plist.forEach((p,i)=>{
       roles[p.id]=i===killerIdx?'killer':'survivor';
-      spawns[p.id]=shuffledSpawns[i%shuffledSpawns.length];
+      if(i===killerIdx){
+        // Pick first safe killer spawn
+        let ksp=killerSpawnPool[0];
+        for(const sp of killerSpawnPool){const safe=safeTileSpawn(sp.x,sp.y);if(safe){ksp=safe;break;}}
+        spawns[p.id]=ksp;
+      } else {
+        const raw=survivorSpawnPool[survIdx%survivorSpawnPool.length];survIdx++;
+        spawns[p.id]=safeTileSpawn(raw.x,raw.y);
+      }
     });
     S.myRole=roles[S.myId];
     const d={roles,spawns,players:S.players};
@@ -2651,7 +3449,6 @@ const Game={
     W={
       map:BASE_MAP.map(r=>[...r]),
       gens:GEN_SPAWNS.map((g,i)=>({id:'g'+i,x:g.x,y:g.y,on:false,prog:0})),
-      exit:{...EXIT_POS,open:false},
       players:{},
       time:GAME_DUR,
     };
@@ -2661,7 +3458,7 @@ const Game={
       const maxSt=role==='killer'?KSMAX:SMAX;
       W.players[p.id]={
         id:p.id,name:p.name,username:p.username||p.name,role,alive:true,escaped:false,
-        x:sp.x*TILE,y:sp.y*TILE,
+        x:sp.x*TILE+TILE/2,y:sp.y*TILE+TILE/2,
         hp:role==='killer'?KHP:SHP,maxHp:role==='killer'?KHP:SHP,
         stamina:maxSt,maxStamina:maxSt,sprinting:false,staminaCd:0,
         interacting:false,interactTarget:null,
@@ -2671,12 +3468,14 @@ const Game={
         bleedTicks:0,bleedTimer:0,
         bloxyCd:0,bloxyActive:false,bloxyTimer:0,speedBuff:1,
         color:p.color||PCOLORS[i%PCOLORS.length],
+        enrageCd:0,enraged:false,enrageTimer:0,enrageAuraTarget:null,enrageAuraLinger:0,enrageStamCapTimer:0,rPrev:false,
+        gbCd:0,gbEating:false,gbEatTimer:0,gbActive:false,gbTimer:0,
       };
     });
   },
 
   initFromSerial(gs){
-    W={map:BASE_MAP.map(r=>[...r]),gens:GEN_SPAWNS.map((g,i)=>({id:'g'+i,x:g.x,y:g.y,on:false,prog:0})),exit:{...EXIT_POS,open:false},players:{},time:gs.time||300};
+    W={map:BASE_MAP.map(r=>[...r]),gens:GEN_SPAWNS.map((g,i)=>({id:'g'+i,x:g.x,y:g.y,on:false,prog:0})),players:{},time:gs.time||300};
     S.players.forEach((p,i)=>{
       W.players[p.id]={id:p.id,name:p.name,role:'survivor',alive:true,escaped:false,x:0,y:0,hp:SHP,maxHp:SHP,stamina:SMAX,maxStamina:SMAX,sprinting:false,staminaCd:0,interacting:false,interactTarget:null,inp:{},shift:false,ePrev:false,facing:0,m1Cd:0,m1Prev:false,m1HitSet:null,bleedTicks:0,bleedTimer:0,color:p.color||PCOLORS[i%PCOLORS.length]};
     });
@@ -2735,7 +3534,7 @@ const Game={
 
       // Move players
       Object.values(W.players).forEach(p=>{
-        if(!p.alive||p.escaped)return;
+        if(!p.alive)return;
         // HOST moves ALL players (authoritative)
         // Clients do NOT move locally — server state is applied via applyState
         if(!S.isHost)return;
@@ -2761,6 +3560,8 @@ const Game={
         Inp.ep=Inp.e;
         if(Inp.q&&!Inp.qp)Game.doQ(S.myId);
         Inp.qp=Inp.q;
+        if(Inp.r&&!Inp.rp)Game.doR(S.myId);
+        Inp.rp=Inp.r;
 
         // Tick bloxy timers for all players
         Object.values(W.players).forEach(p=>{
@@ -2815,7 +3616,24 @@ const Game={
             if(p.ssSpeedTimer<=0){p.ssSpeedActive=false;p.speedBuff=1;}
           }
 
-          if(p.role==='killer'&&p.qCd>0)p.qCd=Math.max(0,p.qCd-dt);
+          // ── Ghost Burger ticks ──
+          if(p.gbCd>0)p.gbCd=Math.max(0,p.gbCd-dt);
+          if(p.gbEating){
+            p.gbEatTimer=Math.max(0,(p.gbEatTimer||0)-dt);
+            if(p.gbEatTimer<=0){
+              p.gbEating=false;
+              p.gbActive=true;
+              p.gbTimer=GB_DUR;
+              // Indetectable: quitar marca LMS si el survivor es el último
+              if(S.lms&&S.lmsLastSurvivorId===p.id&&S.lmsTrackerT>0){
+                S.lmsTrackerT=0;
+              }
+            }
+          }
+          if(p.gbActive){
+            p.gbTimer=Math.max(0,p.gbTimer-dt);
+            if(p.gbTimer<=0){p.gbActive=false;}
+          }p.qCd=Math.max(0,p.qCd-dt);
           if(p.role==='killer'&&p.comboCd>0)p.comboCd=Math.max(0,p.comboCd-dt);
           // Killer combo lock (can't move during combo)
           if(p.role==='killer'&&p.comboLocked){
@@ -2850,11 +3668,12 @@ const Game={
               const cy=p.y+Math.sin(ang)*(HB_OFFSET+HB_H/2);
               slashFX.push({x:cx,y:cy,ang,hw:Q_HB_SIZE/2,hh:Q_HB_SIZE/2,life:.28,maxLife:.28,idx:0,behead:true});
               let hitSomeone=false;
+              const beheadDmg=(p._beheadEnraged)?Q_DMG_ENRAGED:Q_DMG;
               Object.values(W.players).forEach(s=>{
                 if(s.role!=='survivor'||!s.alive)return;
                 if(pointInRotRect(s.x,s.y,cx,cy,Q_HB_SIZE/2,Q_HB_SIZE/2,ang)||Math.hypot(s.x-p.x,s.y-p.y)<TILE*1.02){
                   hitSomeone=true;
-                  s.hp=Math.max(0,s.hp-Q_DMG);
+                  s.hp=Math.max(0,s.hp-beheadDmg);
                   s.helpless=true;s.helplessTimer=Q_HELPLESS_DUR;
                   if(s.hp<=0){s.hp=0;s.alive=false;s.bleedTicks=0;
                     W.time=Math.min(W.time+KILL_TIME_BONUS,GAME_DUR*2);
@@ -2878,7 +3697,32 @@ const Game={
             p.beheadSlowTimer=Math.max(0,p.beheadSlowTimer-dt);
             if(p.beheadSlowTimer<=0){p.beheadSlow=false;p.speedBuff=p.speedBuff===0.6?1:p.speedBuff;}
           }
-        });
+
+          // ── ENRAGED ticks ──
+          if(p.role==='killer'){
+            if(p.enrageCd>0)p.enrageCd=Math.max(0,p.enrageCd-dt);
+            if(p.enraged){
+              p.enrageTimer=Math.max(0,p.enrageTimer-dt);
+              // Stamina cap: over 6.5s, maxStamina decreases toward ENRAGE_STAM_CAP
+              if(p.enrageStamCapTimer>0){
+                p.enrageStamCapTimer=Math.max(0,p.enrageStamCapTimer-dt);
+                const frac=1-(p.enrageStamCapTimer/ENRAGE_STAM_CAP_DUR);
+                p.maxStamina=KSMAX-(KSMAX-ENRAGE_STAM_CAP)*frac;
+                if(p.stamina>p.maxStamina)p.stamina=p.maxStamina;
+              }
+              // Enraged ends
+              if(p.enrageTimer<=0){
+                p.enraged=false;
+                p.maxStamina=KSMAX;
+                // Aura lingers for 2s
+                p.enrageAuraLinger=ENRAGE_AURA_LINGER;
+              }
+            } else if(p.enrageAuraLinger>0){
+              p.enrageAuraLinger=Math.max(0,p.enrageAuraLinger-dt);
+              if(p.enrageAuraLinger<=0)p.enrageAuraTarget=null;
+            }
+          }
+        }); // end forEach players (timers)
 
         Object.values(W.players).forEach(p=>{
           if(!p.alive||p.role!=='survivor'||!p.interacting)return;
@@ -2890,7 +3734,7 @@ const Game={
           if(g.prog>=100){
             g.prog=100;g.on=true;p.interacting=false;p.interactTarget=null;
             if(!S.lms)W.time=Math.max(1,W.time-GEN_TIME_BONUS);
-            if(W.gens.every(g=>g.on))W.exit.open=true;
+            if(W.gens.every(g=>g.on)){/* all gens done — sin salida */}
             // +1 malicia al superviviente que completó el generador
             Net.broadcast({t:'maliciaGen',pid:p.id});
             if(p.id===S.myId)Stats.addMalicia(1);
@@ -2898,7 +3742,7 @@ const Game={
         });
 
         if(!S.lms){
-          const aliveSurv=Object.values(W.players).filter(p=>p.role==='survivor'&&p.alive&&!p.escaped);
+          const aliveSurv=Object.values(W.players).filter(p=>p.role==='survivor'&&p.alive);
           if(aliveSurv.length===1){
             const killer=Object.values(W.players).find(p=>p.role==='killer'&&p.alive);
             if(killer){S.lms=true;S.lmsLastSurvivorId=aliveSurv[0].id;W.time=Math.min(W.time,LMS_TIME);S.lmsTrackerT=LMS_TRACKER_DUR;
@@ -2912,7 +3756,7 @@ const Game={
 
         W.time-=dt;
         if(W.time<=0){
-          const aliveSurv=Object.values(W.players).filter(p=>p.role==='survivor'&&p.alive&&!p.escaped);
+          const aliveSurv=Object.values(W.players).filter(p=>p.role==='survivor'&&p.alive);
           if(aliveSurv.length===0){
             Game.handleRoundEnd('killer','⏱ El tiempo terminó — todos los supervivientes fueron eliminados');
           } else {
@@ -2970,7 +3814,7 @@ const Game={
     if(inp['d']||inp['arrowright'])dx=1;
     if(dx&&dy){dx*=.707;dy*=.707;}
     const moving=dx!==0||dy!==0;
-    const canSprint=p.stamina>0&&!p.bloxyDrinking&&!p.ssDrinking;
+    const canSprint=p.stamina>0&&!p.bloxyDrinking&&!p.ssDrinking&&!p.gbEating;
     const isSprint=!!(sprinting&&canSprint&&moving);
     p.sprinting=isSprint;
     if(isSprint){
@@ -2985,7 +3829,7 @@ const Game={
     }
     if(moving)p.facing=Math.atan2(dy,dx);
     const bw=p.role==='killer'?KW:SW,rw=p.role==='killer'?KR:SR;
-    const buff=(p.ssDrinking?0.6:1)*(p.speedBuff||1); // 40% slow while drinking slate skin
+    const buff=(p.ssDrinking?0.6:p.gbEating?0.6:1)*(p.speedBuff||1); // 40% slow while drinking
     // During behead dash phase: force Speed III (×2.0 of run) in locked direction
     let spd,r=TILE*.28;
     if(p.beheadDashing){
@@ -2998,7 +3842,16 @@ const Game={
       if(!wallAt(p.x,ny,r,'killer'))p.y=ny;
       return;
     }
-    spd=(isSprint?rw:bw)*dt*buff;
+    // ENRAGED: flat speed, sprint disabled
+    if(p.enraged){
+      p.sprinting=false;
+      // Stamina still regens slowly while enraged (no drain)
+      if(p.staminaCd>0)p.staminaCd-=dt;
+      else p.stamina=Math.min(p.maxStamina,p.stamina+KREGEN*dt);
+      spd=ENRAGE_SPEED*dt*buff;
+    } else {
+      spd=(isSprint?rw:bw)*dt*buff;
+    }
     const nx=p.x+dx*spd,ny=p.y+dy*spd;
     if(!wallAt(nx,p.y,r,p.role))p.x=nx;
     if(!wallAt(p.x,ny,r,p.role))p.y=ny;
@@ -3021,7 +3874,9 @@ const Game={
     const p=W.players[pid];
     if(!p||!p.alive||p.role!=='killer')return;
     if(p.qCd>0)return;
-    p.qCd=Q_CD;
+    const enraged=p.enraged||false;
+    breakEnrage(p); // ENRAGED termina al atacar
+    p.qCd=enraged?Q_CD_ENRAGED:Q_CD;
     // Phase 1 — Speed III (×2.0) for 0.2s, locked facing direction
     p.beheadDashing=true;
     p.beheadDashTimer=0.2;
@@ -3032,6 +3887,42 @@ const Game={
     // Slow-on-miss flag (applied after hit window if nobody was hit)
     p.beheadSlow=false;
     p.beheadSlowTimer=0;
+    p._beheadEnraged=enraged; // save for hit resolution
+  },
+
+  doR(pid){
+    const p=W.players[pid];
+    if(!p||!p.alive)return;
+    if(p.role==='killer')Game.doEnrage(pid);
+    else Game.doGhostBurger(pid);
+  },
+
+  doGhostBurger(pid){
+    const p=W.players[pid];
+    if(!p||!p.alive||p.role!=='survivor')return;
+    if(p.gbCd>0||p.gbEating||p.gbActive)return;
+    p.gbEating=true;
+    p.gbEatTimer=GB_EAT_DUR;
+    p.gbCd=GB_CD;
+  },
+
+  doEnrage(pid){
+    const p=W.players[pid];
+    if(!p||!p.alive||p.role!=='killer')return;
+    if(p.enrageCd>0||p.enraged)return;
+    p.enraged=true;
+    p.enrageTimer=ENRAGE_DUR;
+    p.enrageCd=ENRAGE_CD;
+    p.enrageStamCapTimer=ENRAGE_STAM_CAP_DUR;
+    // Find nearest alive survivor for aura
+    let nearestSurv=null,nearestDist=Infinity;
+    Object.values(W.players).forEach(s=>{
+      if(s.role!=='survivor'||!s.alive)return;
+      const d=Math.hypot(s.x-p.x,s.y-p.y);
+      if(d<nearestDist){nearestDist=d;nearestSurv=s.id;}
+    });
+    p.enrageAuraTarget=nearestSurv;
+    p.enrageAuraLinger=0;
   },
   doBloxy(pid){
     const p=W.players[pid];
@@ -3068,6 +3959,7 @@ const Game={
     if(!p||!p.alive||p.role!=='killer')return;
     if(p.comboCd>0||p.comboActive)return;
     const enraged=p.enraged||false;
+    breakEnrage(p); // ENRAGED termina al atacar
     const cd=enraged?COMBO_CD_ENRAGED:COMBO_CD;
     const totalDmg=enraged?COMBO_TOTAL_DMG_ENRAGED:COMBO_TOTAL_DMG;
     const hitDmg=totalDmg/COMBO_HITS;
@@ -3132,8 +4024,6 @@ const Game={
       return;
     }
     if(p.role==='survivor'){
-      const ec={x:W.exit.x*TILE+TILE/2,y:W.exit.y*TILE+TILE/2};
-      if(W.exit.open&&dst(p,ec)<TILE*1.8){p.alive=false;p.escaped=true;if(S.isHost)Game.checkWin();return;}
       if(p.interacting){p.interacting=false;p.interactTarget=null;return;}
       for(const g of W.gens){
         if(g.on)continue;
@@ -3148,8 +4038,7 @@ const Game={
     if(!S.isHost||!S.running)return;
     const surv=Object.values(W.players).filter(p=>p.role==='survivor');
     if(!surv.length)return;
-    if(surv.every(p=>!p.alive&&!p.escaped))Game.handleRoundEnd('killer','☠ Todos los supervivientes fueron eliminados');
-    else if(surv.every(p=>p.escaped))Game.handleRoundEnd('survivors','🚪 ¡Todos los supervivientes escaparon!');
+    if(surv.every(p=>!p.alive))Game.handleRoundEnd('killer','☠ Todos los supervivientes fueron eliminados');
   },
 
   // ── ROUND END: show overlay then return to lobby ──
@@ -3163,6 +4052,7 @@ const Game={
     if(!S.lateJoin){ // don't count stats for mid-game spectators
     if((winner==='killer'&&myRole==='killer')||(winner==='survivors'&&myRole==='survivor')){
       Stats.addWin(myRole);
+      Stats.addCoins(30); // +30 coins for winning
     }
 
     // ── Malicia ──
@@ -3307,9 +4197,14 @@ const Game={
         comboStunned:p.comboStunned||false,comboStunTimer:p.comboStunTimer||0,
         comboKbVx:p.comboKbVx||0,comboKbVy:p.comboKbVy||0,comboKbTimer:p.comboKbTimer||0,
         enraged:p.enraged||false, // stub ENRAGED — se implementará en el futuro
+        enrageCd:p.enrageCd||0,enrageTimer:p.enrageTimer||0,
+        enrageAuraTarget:p.enrageAuraTarget||null,enrageAuraLinger:p.enrageAuraLinger||0,
+        enrageStamCapTimer:p.enrageStamCapTimer||0,
+        gbCd:p.gbCd||0,gbEating:p.gbEating||false,gbEatTimer:p.gbEatTimer||0,
+        gbActive:p.gbActive||false,gbTimer:p.gbTimer||0,
       }])),
       gens:W.gens.map(g=>({id:g.id,on:g.on,prog:g.prog})),
-      exit:{open:W.exit.open},time:W.time,
+      time:W.time,
       slashFX:slashFX.map(s=>({...s})),
       lms:S.lms,lmsTrackerT:S.lmsTrackerT,
     };
@@ -3355,6 +4250,13 @@ const Game={
         p.comboStunned=d.comboStunned||false;p.comboStunTimer=d.comboStunTimer||0;
         p.comboKbVx=d.comboKbVx||0;p.comboKbVy=d.comboKbVy||0;p.comboKbTimer=d.comboKbTimer||0;
         p.enraged=d.enraged||false;
+        p.enrageCd=d.enrageCd||0;p.enrageTimer=d.enrageTimer||0;
+        p.enrageAuraTarget=d.enrageAuraTarget||null;p.enrageAuraLinger=d.enrageAuraLinger||0;
+        p.enrageStamCapTimer=d.enrageStamCapTimer||0;
+        if(d.gbCd!==undefined){
+          p.gbCd=d.gbCd||0;p.gbEating=d.gbEating||false;p.gbEatTimer=d.gbEatTimer||0;
+          p.gbActive=d.gbActive||false;p.gbTimer=d.gbTimer||0;
+        }
       }
 
       // Auto-enter spectate after short death pause
@@ -3371,7 +4273,7 @@ const Game={
       }
     });
     gs.gens.forEach(gd=>{const g=W.gens.find(x=>x.id===gd.id);if(g){g.on=gd.on;g.prog=gd.prog;}});
-    W.exit.open=gs.exit.open;W.time=gs.time;
+    W.time=gs.time;
     if(gs.slashFX)slashFX=gs.slashFX.filter(s=>s.life>0);
     if(gs.lms!==undefined){S.lms=gs.lms;S.lmsTrackerT=gs.lmsTrackerT||0;}
   },
@@ -3661,22 +4563,6 @@ const Game={
       }
     });
 
-    // Exit — only visible/rendered when open (no locked icon on map)
-    const ex=W.exit,epx=ex.x*TILE,epy=ex.y*TILE;
-    if(ex.open){
-      ctx.shadowColor='#00ff44';ctx.shadowBlur=22;
-      ctx.fillStyle='#001a06';ctx.fillRect(epx+1,epy+1,TILE-2,TILE-2);
-      ctx.strokeStyle='#00ff44';ctx.lineWidth=2.5;ctx.strokeRect(epx+1,epy+1,TILE-2,TILE-2);
-      ctx.font=`${TILE*.52}px monospace`;ctx.fillStyle='#00ff44';
-      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🚪',epx+TILE/2,epy+TILE/2);
-      ctx.font=`7px 'Share Tech Mono',monospace`;ctx.fillStyle='rgba(0,255,68,.85)';
-      ctx.fillText('SALIDA',epx+TILE/2,epy+TILE-3);
-      ctx.shadowBlur=0;
-      // Pulsing ring
-      const pulse=0.6+Math.sin(Date.now()*0.004)*0.4;
-      ctx.strokeStyle=`rgba(0,255,68,${pulse*0.4})`;ctx.lineWidth=3;
-      ctx.beginPath();ctx.arc(epx+TILE/2,epy+TILE/2,TILE*0.7,0,Math.PI*2);ctx.stroke();
-    }
     ctx.shadowBlur=0;
 
     // Slash FX — hitbox debug + combo animation always visible
@@ -3727,12 +4613,44 @@ const Game={
 
     // Players
     Object.values(W.players).forEach(p=>{
-      if(p.escaped)return;
+      if(!p.alive)return;
       const r=TILE*.32,isMe=p.id===S.myId,dead=!p.alive;
+      const me2=W.players[S.myId];
+      // Ghost Burger invisibility — survivor partially invisible to killer
+      // isMe siempre se ve; si eres killer, el survivor con GB aparece semi-transparente
+      const isGBInvis=(p.role==='survivor')&&(p.gbActive||p.gbEating)&&!isMe&&(me2&&me2.role==='killer');
+      const gbAlpha=isGBInvis?GB_INVIS_ALPHA:1;
+      if(gbAlpha<1){ctx.save();ctx.globalAlpha=gbAlpha;}
+      // Eating animation: burger emoji floating above
+      if(p.gbEating&&isMe){
+        const t=Date.now()/300;
+        ctx.save();ctx.globalAlpha=0.85+Math.sin(t)*0.15;
+        ctx.font=`${TILE*.55}px monospace`;ctx.textAlign='center';ctx.textBaseline='bottom';
+        ctx.fillText('🍔',p.x,p.y-r-18+Math.sin(t*1.8)*3);
+        ctx.restore();
+      }
+      // Ghost aura when GB active (visible only to self)
+      if(p.gbActive&&isMe){
+        const t=Date.now()/400;
+        const pulse=0.4+Math.sin(t)*0.25;
+        ctx.beginPath();ctx.arc(p.x,p.y,r*1.7+Math.sin(t*1.3)*3,0,Math.PI*2);
+        ctx.fillStyle=`rgba(150,80,255,${pulse*0.12})`;ctx.fill();
+        ctx.beginPath();ctx.arc(p.x,p.y,r*1.2,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(180,100,255,${pulse*0.55})`;ctx.lineWidth=2;ctx.stroke();
+      }
       // Sprint aura
       if(p.sprinting&&p.alive){
         ctx.beginPath();ctx.arc(p.x,p.y,r+6,0,Math.PI*2);
         ctx.fillStyle=p.role==='killer'?'rgba(231,76,60,.08)':'rgba(255,215,0,.07)';ctx.fill();
+      }
+      // ENRAGED aura around killer
+      if(p.role==='killer'&&p.enraged&&p.alive){
+        const t=Date.now()/400;
+        const pulse=0.55+Math.sin(t)*0.3;
+        ctx.beginPath();ctx.arc(p.x,p.y,r*2.2+Math.sin(t*1.7)*4,0,Math.PI*2);
+        ctx.fillStyle=`rgba(255,60,0,${pulse*0.15})`;ctx.fill();
+        ctx.beginPath();ctx.arc(p.x,p.y,r*1.5,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(255,80,0,${pulse*0.7})`;ctx.lineWidth=2.5;ctx.stroke();
       }
       // Ground shadow
       ctx.beginPath();ctx.ellipse(p.x,p.y+r*.55,r*.65,r*.22,0,0,Math.PI*2);
@@ -3940,6 +4858,7 @@ const Game={
           ctx.fillText('🩸',bx+bw+6,by+bh/2);
         }
       }
+      if(gbAlpha<1)ctx.restore();
     });
   },
 
@@ -3953,14 +4872,23 @@ const Game={
       // Killer: subtle blood vignette only
       const gv=ctx.createRadialGradient(cx2,cy2,cw*.28,cx2,cy2,cw*.72);
       gv.addColorStop(0,'rgba(0,0,0,0)');gv.addColorStop(1,'rgba(60,0,0,.20)');
-      ctx.fillStyle=gv;ctx.fillRect(0,0,cw,ch);return;
+      ctx.fillStyle=gv;ctx.fillRect(0,0,cw,ch);
+      // ENRAGED: pulsing orange-red edge vignette
+      if(me.enraged){
+        const t=Date.now()/600;
+        const pulse=0.28+Math.sin(t)*0.12;
+        const ev=ctx.createRadialGradient(cx2,cy2,cw*.35,cx2,cy2,cw*.85);
+        ev.addColorStop(0,'rgba(0,0,0,0)');ev.addColorStop(0.7,'rgba(200,50,0,'+pulse*.4+')');
+        ev.addColorStop(1,'rgba(255,30,0,'+pulse+')');
+        ctx.fillStyle=ev;ctx.fillRect(0,0,cw,ch);
+      }
+      return;
     }
-    // Survivor: same vignette technique as killer — just slightly stronger edges
-    // Player is always at screen center due to camera tracking
+    // Survivor: same vignette technique as killer — slightly stronger edges but 20% lighter
     const gv=ctx.createRadialGradient(cx2,cy2,Math.min(cw,ch)*.22,cx2,cy2,Math.min(cw,ch)*.62);
     gv.addColorStop(0,'rgba(0,0,0,0)');
-    gv.addColorStop(0.6,'rgba(0,0,0,0.25)');
-    gv.addColorStop(1,'rgba(0,0,0,0.82)');
+    gv.addColorStop(0.6,'rgba(0,0,0,0.20)');
+    gv.addColorStop(1,'rgba(0,0,0,0.66)');
     ctx.fillStyle=gv;ctx.fillRect(0,0,cw,ch);
   },
 
@@ -4019,9 +4947,42 @@ const Game={
         const killer=Object.values(W.players).find(p=>p.role==='killer'&&p.alive);
         if(killer){const {sx,sy}=toScreen(killer.x,killer.y);ctx.save();ctx.globalAlpha=alpha;if(onScreen(sx,sy))drawOnscreen(killer.x,killer.y,'rgba(231,76,60,0.9)','⚔');else drawEdgeArrow(killer.x,killer.y,'rgba(231,76,60,0.9)','⚔');ctx.restore();}
       } else if(me.role==='killer'){
-        Object.values(W.players).filter(p=>p.role==='survivor'&&p.alive&&!p.escaped).forEach(s=>{
+        Object.values(W.players).filter(p=>p.role==='survivor'&&p.alive).forEach(s=>{
+          // Indetectable: si el survivor tiene Ghost Burger activo, no aparece en el tracker
+          if((s.gbActive||s.gbEating)&&S.lmsTrackerT<=0)return;
           const {sx,sy}=toScreen(s.x,s.y);ctx.save();ctx.globalAlpha=alpha;if(onScreen(sx,sy))drawOnscreen(s.x,s.y,'rgba(52,152,219,0.9)','🏃');else drawEdgeArrow(s.x,s.y,'rgba(52,152,219,0.9)','🏃');ctx.restore();
         });
+      }
+    }
+    // ── ENRAGED aura: killer sees aura around target survivor ──
+    if(me.role==='killer'){
+      const killer=me;
+      const auraTarget=killer.enrageAuraTarget;
+      const hasAura=(killer.enraged||killer.enrageAuraLinger>0)&&auraTarget;
+      if(hasAura){
+        const tgt=W.players[auraTarget];
+        if(tgt&&tgt.alive){
+          const {sx,sy}=toScreen(tgt.x,tgt.y);
+          const pulse=0.6+Math.sin(Date.now()/130)*0.4;
+          const linger=!killer.enraged&&killer.enrageAuraLinger>0;
+          const auraColor=linger?'rgba(255,180,0,':'rgba(255,60,0,';
+          ctx.save();
+          ctx.globalAlpha=pulse*(linger?0.55:0.85);
+          // Pulsing ring around survivor
+          ctx.beginPath();ctx.arc(sx,sy,(TILE*sc*.8)+Math.sin(Date.now()/100)*4,0,Math.PI*2);
+          ctx.strokeStyle=auraColor+'1)';ctx.lineWidth=3+Math.sin(Date.now()/150)*1.5;
+          ctx.shadowColor=auraColor+'1)';ctx.shadowBlur=22;ctx.stroke();
+          ctx.globalAlpha=pulse*0.18;
+          ctx.beginPath();ctx.arc(sx,sy,TILE*sc*.8,0,Math.PI*2);
+          ctx.fillStyle=auraColor+'1)';ctx.fill();
+          ctx.globalAlpha=1;ctx.shadowBlur=0;
+          // Off-screen arrow
+          if(!onScreen(sx,sy)){
+            ctx.globalAlpha=linger?0.65:1;
+            drawEdgeArrow(tgt.x,tgt.y,auraColor+'1)','👁');
+          }
+          ctx.restore();
+        }
       }
     }
   },
@@ -4030,7 +4991,44 @@ const Game={
     if(!ctx)return;
     ctx.save();Game._beginCam();Game._drawWorld(me);Game._endCam();
     Game._drawFog(me);
+    Game._drawGensGlow(me);
     Game._drawTrackers(me||W.players[S.myId]);
+    ctx.restore();
+  },
+
+  _drawGensGlow(me){
+    // Generadores brillan a través de la oscuridad para el survivor
+    if(!me||me.role==='killer')return;
+    const sc=CAM._effScale||SCALE;
+    const t=Date.now()/600;
+    ctx.save();
+    Game._beginCam();
+    W.gens.forEach(g=>{
+      if(g.on)return; // ya completado, no necesita brillo de alerta
+      const px=g.x*TILE,py=g.y*TILE;
+      const cx3=px+TILE/2,cy3=py+TILE/2;
+      const pulse=0.55+Math.sin(t+g.x*0.7+g.y*0.5)*0.35;
+      // Halo verde pulsante sobre el fog
+      const grad=ctx.createRadialGradient(cx3,cy3,TILE*.1,cx3,cy3,TILE*1.1);
+      grad.addColorStop(0,`rgba(0,255,80,${pulse*0.55})`);
+      grad.addColorStop(0.45,`rgba(0,200,60,${pulse*0.22})`);
+      grad.addColorStop(1,'rgba(0,100,30,0)');
+      ctx.fillStyle=grad;
+      ctx.beginPath();ctx.arc(cx3,cy3,TILE*1.1,0,Math.PI*2);ctx.fill();
+      // Ícono ⚡ visible sobre fog
+      ctx.font=`${TILE*.42}px monospace`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.globalAlpha=0.55+Math.sin(t*1.5+g.x)*0.3;
+      ctx.shadowColor='#00ff44';ctx.shadowBlur=14*pulse;
+      ctx.fillText('⚡',cx3,cy3);
+      ctx.shadowBlur=0;ctx.globalAlpha=1;
+      // Progreso si está siendo reparado
+      if(g.prog>0){
+        const bw=TILE*.8,bh=4,bx2=cx3-bw/2,by2=py+TILE+3;
+        ctx.fillStyle='rgba(0,0,0,.5)';ctx.fillRect(bx2,by2,bw,bh);
+        ctx.fillStyle='#00cc44';ctx.fillRect(bx2,by2,bw*g.prog/100,bh);
+      }
+    });
+    Game._endCam();
     ctx.restore();
   },
 
@@ -4039,7 +5037,7 @@ const Game={
     const target=S.specTarget?W.players[S.specTarget]:null;
     ctx.save();Game._beginCam();Game._drawWorld(target);Game._endCam();
     ctx.fillStyle='rgba(0,0,0,.12)';ctx.fillRect(0,0,canvas.width,canvas.height);
-    if(target&&!target.escaped){
+    if(target&&target.alive){
       const sc=CAM._effScale||SCALE;
       const sx=(target.x-CAM.x)*sc,sy=(target.y-CAM.y)*sc;
       ctx.beginPath();ctx.arc(sx,sy,TILE*sc*.55,0,Math.PI*2);
@@ -4442,6 +5440,434 @@ const KillerWin={
 };
 
 // ══════════════════════════════════════════
+//  ECONOMY
+// ══════════════════════════════════════════
+const Economy={
+  updateDisplays(){
+    const m=Stats.coins||0;
+    const el=document.getElementById('llmMoneyAmt');if(el)el.textContent=m;
+    const sh=document.getElementById('shopMoneyDisplay');if(sh)sh.textContent=m;
+  },
+};
+
+// ══════════════════════════════════════════
+//  STORE DATA — killers & survivors
+//  Agrega personajes aquí cuando estén listos
+// ══════════════════════════════════════════
+const STORE_KILLERS=[
+  { id:'slasher', name:'SLASHER', price:0, free:true, icon:'🗡', author:'Forsaken',
+    tagline:'El asesino original. Rápido, letal y sin piedad.',
+    stats:[{lbl:'VELOCIDAD',val:80},{lbl:'DAÑO',val:75},{lbl:'RESISTENCIA',val:60}],
+    abilities:[{key:'M1',desc:'Tajo — Ataca 3 veces seguidas con su machete.'},{key:'Q',desc:'Behead — Dash hacia adelante + golpe devastador.'},{key:'R',desc:'Enraged — Aumenta velocidad y daño temporalmente.'}],
+    skins:[] }
+];
+const STORE_SURVIVORS=[
+  { id:'noob', name:'NOOB', price:0, free:true, icon:'🏃', author:'Forsaken',
+    tagline:'El superviviente clásico. Ágil, resistente y lleno de trucos.',
+    stats:[{lbl:'VELOCIDAD',val:70},{lbl:'STAMINA',val:80},{lbl:'RESISTENCIA',val:65}],
+    abilities:[{key:'Q',desc:'Bloxy Cola — Bebe una cola que aumenta tu velocidad temporalmente.'},{key:'E',desc:'Slate Skin — Toma una poción que te hace sobrevivir a un golpe mortal.'},{key:'R',desc:'Ghost Burger — Come una hamburguesa que te vuelve casi invisible.'}],
+    skins:[] }
+];
+
+// ══════════════════════════════════════════
+//  SHOP
+// ══════════════════════════════════════════
+const Shop={
+  _tab:'killers',
+  _selected:null,
+  _statsOpen:false,
+  _skinsOpen:false,
+
+  open(){
+    document.getElementById('shopModal').classList.add('show');
+    document.getElementById('s-lobby').focus();// keep lobby focus for movement
+    this._tab='killers';
+    this._selected=null;
+    this._statsOpen=false;this._skinsOpen=false;
+    document.getElementById('shopTabKillers').classList.add('active');
+    document.getElementById('shopTabSurvivors').classList.remove('active');
+    document.getElementById('shopSearch').value='';
+    this._renderGrid();
+    this._showRightEmpty();
+    this._renderPlayerList();
+    Economy.updateDisplays();
+    document.getElementById('llmShopBtn').classList.add('active');
+    document.getElementById('llmInvBtn').classList.remove('active');
+    document.getElementById('llmSettBtn').classList.remove('active');
+    const sp=document.getElementById('lobbySettingsPanel');if(sp)sp.classList.remove('show');
+  },
+
+  close(){
+    document.getElementById('shopModal').classList.remove('show');
+    document.getElementById('llmShopBtn').classList.remove('active');
+    setTimeout(()=>{document.getElementById('s-lobby').focus();},50);
+  },
+
+  setTab(t){
+    this._tab=t;
+    this._selected=null;
+    this._statsOpen=false;this._skinsOpen=false;
+    document.getElementById('shopTabKillers').classList.toggle('active',t==='killers');
+    document.getElementById('shopTabSurvivors').classList.toggle('active',t==='survivors');
+    document.getElementById('shopSearch').value='';
+    this._renderGrid();
+    this._showRightEmpty();
+  },
+
+  filter(){
+    this._renderGrid();
+  },
+
+  _getList(){return this._tab==='killers'?STORE_KILLERS:STORE_SURVIVORS;},
+  _getOwned(){return this._tab==='killers'?(Stats.ownedKillers||[]):(Stats.ownedSurvivors||[]);},
+  _getEquipped(){return this._tab==='killers'?(Stats.equippedKiller||''):(Stats.equippedSurvivor||'');},
+
+  _renderGrid(){
+    const grid=document.getElementById('shopGrid');
+    grid.innerHTML='';
+    const q=(document.getElementById('shopSearch').value||'').toLowerCase();
+    const list=this._getList().filter(c=>!q||c.name.toLowerCase().includes(q));
+    if(!list.length){
+      grid.innerHTML=`<div class="store-empty-msg"><div class="em-icon">${this._tab==='killers'?'🗡':'🏃'}</div><div class="em-text">NO HAY ${this._tab==='killers'?'KILLERS':'SURVIVORS'} DISPONIBLES AÚN<br><br>¡Pronto se agregarán<br>nuevos personajes!</div></div>`;
+      return;
+    }
+    const owned=this._getOwned();
+    const equipped=this._getEquipped();
+    list.forEach(c=>{
+      const isOwned=c.free||owned.includes(c.id);
+      const isEquipped=equipped===c.id;
+      const card=document.createElement('div');
+      card.className='store-card'+(this._selected===c.id?' selected':'');
+      card.innerHTML=`
+        <div class="store-card-portrait">
+          <div class="store-card-glow"></div>
+          <span style="position:relative;z-index:1">${c.icon||'🗡'}</span>
+        </div>
+        <div class="store-card-name">${c.name}</div>
+        <div class="store-card-price ${isOwned?'owned':c.free?'free':''}">${isOwned?(isEquipped?'EQUIPADO':'OBTENIDO'):(c.free?'FREE':c.price+'$')}</div>
+        ${isEquipped?'<div class="store-card-equipped-badge">✓ EQUIPADO</div>':(isOwned?'<div class="store-card-owned-badge">OBTENIDO</div>':'')}
+      `;
+      card.onclick=()=>this._select(c.id);
+      grid.appendChild(card);
+    });
+  },
+
+  _select(id){
+    this._selected=id;
+    this._statsOpen=false;this._skinsOpen=false;
+    this._renderGrid();
+    const list=this._getList();
+    const c=list.find(x=>x.id===id);
+    if(!c)return;
+    const owned=this._getOwned();
+    const isOwned=c.free||owned.includes(c.id);
+    const isEquipped=this._getEquipped()===c.id;
+    // Show detail
+    document.getElementById('shopRightEmpty').style.display='none';
+    const det=document.getElementById('shopDetail');
+    det.classList.add('show');
+    document.getElementById('shopDetailIcon').textContent=c.icon||'🗡';
+    document.getElementById('shopDetailName').textContent=c.name;
+    document.getElementById('shopDetailAuthor').textContent='Made By: '+(c.author||'Forsaken');
+    document.getElementById('shopDetailTagline').textContent=c.tagline||'';
+    // Stats
+    const sr=document.getElementById('shopStatsRows');
+    sr.innerHTML='';
+    (c.stats||[]).forEach(s=>{
+      const colors=['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6'];
+      const col=colors[Math.floor(Math.random()*colors.length)];
+      sr.innerHTML+=`<div class="store-stat-row"><div class="store-stat-lbl">${s.lbl}</div><div class="store-stat-bar"><div class="store-stat-fill" style="width:${s.val}%;background:${col}"></div></div></div>`;
+    });
+    // Abilities
+    const ar=document.getElementById('shopAbilityRows');
+    ar.innerHTML='';
+    (c.abilities||[]).forEach(a=>{
+      ar.innerHTML+=`<div class="store-ability-item"><div class="store-ability-key">${a.key}</div><div class="store-ability-desc">${a.desc}</div></div>`;
+    });
+    // Skins
+    const sg=document.getElementById('shopSkinsGrid');
+    sg.innerHTML='';
+    if(!isOwned){
+      sg.innerHTML='<div style="font-size:.52rem;color:rgba(255,255,255,.3);letter-spacing:.1em;">Compra este personaje para ver sus skins.</div>';
+    } else {
+      (c.skins||[]).forEach((sk,i)=>{
+        sg.innerHTML+=`<div class="store-skin-slot" title="${sk.name||'Skin '+i}">${sk.icon||'🎨'}</div>`;
+      });
+      if(!(c.skins&&c.skins.length))sg.innerHTML='<div style="font-size:.52rem;color:rgba(255,255,255,.3);letter-spacing:.1em;">No hay skins disponibles.</div>';
+    }
+    // Panels hidden by default
+    document.getElementById('shopStatsPanel').style.display='none';
+    document.getElementById('shopSkinsPanel').classList.remove('show');
+    document.getElementById('shopAbilityPanel').style.display=(c.abilities&&c.abilities.length)?'block':'none';
+    // Action bar
+    const priceEl=document.getElementById('shopActionPrice');
+    const buyBtn=document.getElementById('shopActionBtn');
+    if(isOwned){
+      priceEl.className='store-action-price owned';
+      priceEl.textContent=isEquipped?'EQUIPADO':'OBTENIDO';
+      buyBtn.className='store-action-buy owned';
+      buyBtn.textContent='OBTENIDO';
+    } else if(c.free){
+      priceEl.className='store-action-price free';priceEl.textContent='FREE';
+      buyBtn.className='store-action-buy';buyBtn.textContent='OBTENER';
+    } else {
+      priceEl.className='store-action-price';priceEl.textContent=c.price+'$';
+      const canBuy=(Stats.coins||0)>=c.price;
+      buyBtn.className='store-action-buy';
+      buyBtn.textContent='COMPRAR';
+      buyBtn.style.opacity=canBuy?'1':'0.5';
+    }
+  },
+
+  _showRightEmpty(){
+    document.getElementById('shopRightEmpty').style.display='flex';
+    document.getElementById('shopDetail').classList.remove('show');
+  },
+
+  toggleStats(){
+    this._statsOpen=!this._statsOpen;
+    document.getElementById('shopStatsPanel').style.display=this._statsOpen?'block':'none';
+  },
+  toggleSkins(){
+    this._skinsOpen=!this._skinsOpen;
+    document.getElementById('shopSkinsPanel').classList.toggle('show',this._skinsOpen);
+  },
+
+  doPurchase(){
+    if(!this._selected)return;
+    const list=this._getList();
+    const c=list.find(x=>x.id===this._selected);
+    if(!c)return;
+    const owned=this._getOwned();
+    if(c.free||owned.includes(c.id))return; // already owned
+    if(!c.free&&(Stats.coins||0)<c.price){
+      // Flash not enough money
+      const btn=document.getElementById('shopActionBtn');
+      btn.textContent='SIN DINERO';btn.style.borderColor='#e74c3c';
+      setTimeout(()=>{btn.textContent='COMPRAR';btn.style.borderColor='';},1500);
+      return;
+    }
+    // Deduct coins
+    if(!c.free)Stats.addCoins(-c.price);
+    // Add to owned
+    if(this._tab==='killers'){Stats.ownedKillers=[...(Stats.ownedKillers||[]),c.id];}
+    else{Stats.ownedSurvivors=[...(Stats.ownedSurvivors||[]),c.id];}
+    Stats.save();
+    this._select(c.id);
+    this._renderGrid();
+    Economy.updateDisplays();
+  },
+
+  _renderPlayerList(){
+    const rows=document.getElementById('shopPlayerRows');
+    if(!rows)return;
+    rows.innerHTML='';
+    const players=[...S.players];
+    // Put self first
+    const myIdx=players.findIndex(p=>p.id===S.myId);
+    if(myIdx>0){const [me]=players.splice(myIdx,1);players.unshift(me);}
+    players.forEach(p=>{
+      const isMe=p.id===S.myId;
+      const money=isMe?(Stats.coins||0):'—';
+      const div=document.createElement('div');
+      div.className='store-player-row'+(isMe?' me':'');
+      div.innerHTML=`<span>${p.username||p.name}</span><span class="store-player-money">${money}$</span>`;
+      rows.appendChild(div);
+    });
+  },
+};
+
+// ══════════════════════════════════════════
+//  INVENTORY
+// ══════════════════════════════════════════
+const Inventory={
+  _tab:'killers',
+  _selected:null,
+  _statsOpen:false,
+  _skinsOpen:false,
+
+  open(){
+    document.getElementById('inventoryModal').classList.add('show');
+    this._tab='killers';
+    this._selected=null;
+    this._statsOpen=false;this._skinsOpen=false;
+    document.getElementById('invTabKillers').classList.add('active');
+    document.getElementById('invTabSurvivors').classList.remove('active');
+    this._renderGrid();
+    this._showRightEmpty();
+    document.getElementById('llmInvBtn').classList.add('active');
+    document.getElementById('llmShopBtn').classList.remove('active');
+    document.getElementById('llmSettBtn').classList.remove('active');
+    const sp=document.getElementById('lobbySettingsPanel');if(sp)sp.classList.remove('show');
+  },
+
+  close(){
+    document.getElementById('inventoryModal').classList.remove('show');
+    document.getElementById('llmInvBtn').classList.remove('active');
+    setTimeout(()=>{document.getElementById('s-lobby').focus();},50);
+  },
+
+  setTab(t){
+    this._tab=t;
+    this._selected=null;
+    this._statsOpen=false;this._skinsOpen=false;
+    document.getElementById('invTabKillers').classList.toggle('active',t==='killers');
+    document.getElementById('invTabSurvivors').classList.toggle('active',t==='survivors');
+    this._renderGrid();
+    this._showRightEmpty();
+  },
+
+  _getOwnedList(){
+    const all=this._tab==='killers'?STORE_KILLERS:STORE_SURVIVORS;
+    const owned=this._tab==='killers'?(Stats.ownedKillers||[]):(Stats.ownedSurvivors||[]);
+    return all.filter(c=>c.free||owned.includes(c.id));
+  },
+
+  _getEquipped(){return this._tab==='killers'?(Stats.equippedKiller||''):(Stats.equippedSurvivor||'');},
+
+  _renderGrid(){
+    const grid=document.getElementById('invGrid');
+    grid.innerHTML='';
+    const list=this._getOwnedList();
+    const equipped=this._getEquipped();
+    if(!list.length){
+      grid.innerHTML=`<div class="store-empty-msg"><div class="em-icon">🎒</div><div class="em-text">NO TIENES ${this._tab==='killers'?'KILLERS':'SURVIVORS'} AÚN<br><br>Ve a la tienda para comprar personajes.</div></div>`;
+      return;
+    }
+    list.forEach(c=>{
+      const isEquipped=equipped===c.id;
+      const card=document.createElement('div');
+      card.className='store-card'+(this._selected===c.id?' selected':'');
+      card.innerHTML=`
+        <div class="store-card-portrait">
+          <div class="store-card-glow"></div>
+          <span style="position:relative;z-index:1">${c.icon||'🗡'}</span>
+        </div>
+        <div class="store-card-name">${c.name}</div>
+        <div class="store-card-price owned">${isEquipped?'EQUIPADO':'OBTENIDO'}</div>
+        ${isEquipped?'<div class="store-card-equipped-badge">✓ EQUIPADO</div>':''}
+      `;
+      card.onclick=()=>this._select(c.id);
+      grid.appendChild(card);
+    });
+  },
+
+  _select(id){
+    this._selected=id;
+    this._statsOpen=false;this._skinsOpen=false;
+    this._renderGrid();
+    const c=this._getOwnedList().find(x=>x.id===id);
+    if(!c)return;
+    const isEquipped=this._getEquipped()===c.id;
+    document.getElementById('invRightEmpty').style.display='none';
+    const det=document.getElementById('invDetail');det.classList.add('show');
+    document.getElementById('invDetailIcon').textContent=c.icon||'🗡';
+    document.getElementById('invDetailName').textContent=c.name;
+    document.getElementById('invDetailAuthor').textContent='Made By: '+(c.author||'Forsaken');
+    document.getElementById('invDetailTagline').textContent=c.tagline||'';
+    // Stats
+    const sr=document.getElementById('invStatsRows');sr.innerHTML='';
+    (c.stats||[]).forEach(s=>{
+      const colors=['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6'];
+      const col=colors[Math.floor(Math.random()*colors.length)];
+      sr.innerHTML+=`<div class="store-stat-row"><div class="store-stat-lbl">${s.lbl}</div><div class="store-stat-bar"><div class="store-stat-fill" style="width:${s.val}%;background:${col}"></div></div></div>`;
+    });
+    // Abilities
+    const ar=document.getElementById('invAbilityRows');ar.innerHTML='';
+    (c.abilities||[]).forEach(a=>{
+      ar.innerHTML+=`<div class="store-ability-item"><div class="store-ability-key">${a.key}</div><div class="store-ability-desc">${a.desc}</div></div>`;
+    });
+    // Skins (only owned skins)
+    const sg=document.getElementById('invSkinsGrid');sg.innerHTML='';
+    const ownedSkins=(c.skins||[]);// filter to owned when skin system is added
+    if(!ownedSkins.length){
+      sg.innerHTML='<div style="font-size:.52rem;color:rgba(255,255,255,.3);letter-spacing:.1em;">No tienes skins para este personaje.</div>';
+    } else {
+      ownedSkins.forEach((sk,i)=>{
+        sg.innerHTML+=`<div class="store-skin-slot" title="${sk.name||'Skin '+i}">${sk.icon||'🎨'}</div>`;
+      });
+    }
+    document.getElementById('invStatsPanel').style.display='none';
+    document.getElementById('invSkinsPanel').classList.remove('show');
+    document.getElementById('invAbilityPanel').style.display=(c.abilities&&c.abilities.length)?'block':'none';
+    // Action btn
+    const statusEl=document.getElementById('invActionStatus');
+    const btn=document.getElementById('invActionBtn');
+    if(isEquipped){
+      statusEl.textContent='✓ EQUIPADO';statusEl.style.color='var(--gold)';
+      btn.className='store-action-buy unequip-btn';btn.textContent='DESEQUIPAR';
+    } else {
+      statusEl.textContent='';
+      btn.className='store-action-buy equip-btn';btn.textContent='EQUIPAR';
+    }
+  },
+
+  _showRightEmpty(){
+    document.getElementById('invRightEmpty').style.display='flex';
+    document.getElementById('invDetail').classList.remove('show');
+  },
+
+  toggleStats(){
+    this._statsOpen=!this._statsOpen;
+    document.getElementById('invStatsPanel').style.display=this._statsOpen?'block':'none';
+  },
+  toggleSkins(){
+    this._skinsOpen=!this._skinsOpen;
+    document.getElementById('invSkinsPanel').classList.toggle('show',this._skinsOpen);
+  },
+
+  doEquip(){
+    if(!this._selected)return;
+    const c=this._getOwnedList().find(x=>x.id===this._selected);
+    if(!c)return;
+    const isEquipped=this._getEquipped()===c.id;
+    if(this._tab==='killers'){
+      Stats.equippedKiller=isEquipped?'':c.id;
+    } else {
+      Stats.equippedSurvivor=isEquipped?'':c.id;
+    }
+    Stats.save();
+    this._select(c.id);
+    this._renderGrid();
+  },
+};
+
+// ══════════════════════════════════════════
+//  LOBBY SETTINGS
+// ══════════════════════════════════════════
+const LobbySettings={
+  toggle(){
+    const panel=document.getElementById('lobbySettingsPanel');
+    const isOpen=panel.classList.contains('show');
+    panel.classList.toggle('show',!isOpen);
+    document.getElementById('llmSettBtn').classList.toggle('active',!isOpen);
+    document.getElementById('llmShopBtn').classList.remove('active');
+    document.getElementById('llmInvBtn').classList.remove('active');
+    if(!isOpen){ // closing shop/inv if open
+      document.getElementById('shopModal').classList.remove('show');
+      document.getElementById('inventoryModal').classList.remove('show');
+    }
+  },
+  loadHitbox(){
+    const pref=Stats.hitboxPref||false;
+    S.showHitbox=pref;
+    const chk=document.getElementById('lobbyHitboxToggle');
+    if(chk)chk.checked=pref;
+    // Also sync the in-game hitbox button state
+    const btn=document.getElementById('hitboxToggleBtn');
+    if(btn)btn.classList.toggle('on',pref);
+  },
+  setHitbox(val){
+    S.showHitbox=val;
+    Stats.hitboxPref=val;
+    Stats.save();
+    // Sync in-game button
+    const btn=document.getElementById('hitboxToggleBtn');
+    if(btn)btn.classList.toggle('on',val);
+  },
+};
+
+// ══════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════
 Inp.init();
@@ -4458,6 +5884,16 @@ document.getElementById('profileModal').addEventListener('click',function(e){
   if(e.target===this)LobbyWorld.closeProfile();
 });
 
+// Click outside settings panel to close
+document.getElementById('s-lobby').addEventListener('click',function(e){
+  const panel=document.getElementById('lobbySettingsPanel');
+  const settBtn=document.getElementById('llmSettBtn');
+  if(panel&&panel.classList.contains('show')&&!panel.contains(e.target)&&!settBtn.contains(e.target)){
+    panel.classList.remove('show');
+    settBtn.classList.remove('active');
+  }
+});
+
 // Client input loop — sends inputs to host every frame
 (function inputLoop(){
   requestAnimationFrame(inputLoop);
@@ -4467,7 +5903,7 @@ document.getElementById('profileModal').addEventListener('click',function(e){
   Net.sendHost({
     t:'input',pid:S.myId,
     inp:{...Inp.k},shift:Inp.sh,e:Inp.e,
-    m1:Inp.m1,facing:Inp.facing,q:Inp.q,
+    m1:Inp.m1,facing:Inp.facing,q:Inp.q,r:Inp.r,
   });
 })();
 </script>
