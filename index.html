@@ -959,6 +959,44 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
           <span class="lsp-toggle-thumb"></span>
         </label>
       </div>
+      <div class="lsp-option">
+        <span class="lsp-option-lbl" title="AFK: permaneces en el lobby pero no cuentas para iniciar partidas">MODO AFK</span>
+        <label class="lsp-toggle">
+          <input type="checkbox" id="lobbyAfkToggle" onchange="LobbySettings.setAfk(this.checked)">
+          <span class="lsp-toggle-track"></span>
+          <span class="lsp-toggle-thumb"></span>
+        </label>
+      </div>
+      <div id="lspAfkHint" style="font-size:.5rem;letter-spacing:.1em;color:rgba(255,200,0,.5);margin-top:-4px;display:none;">No contarás para iniciar partidas</div>
+    </div>
+
+    <!-- AFK Verification overlay -->
+    <div id="afkPingOverlay" style="
+      display:none;position:absolute;inset:0;z-index:500;
+      background:rgba(0,0,0,.82);backdrop-filter:blur(4px);
+      align-items:center;justify-content:center;pointer-events:all;
+    ">
+      <div style="
+        background:#0d0d18;border:1px solid rgba(192,57,43,.6);
+        padding:32px 40px;display:flex;flex-direction:column;align-items:center;gap:16px;
+        box-shadow:0 0 40px rgba(192,57,43,.3);max-width:340px;width:90%;
+      ">
+        <div style="font-size:2rem;">💤</div>
+        <div style="font-family:'Oswald',sans-serif;font-size:1.1rem;letter-spacing:.2em;color:#fff;">¿SIGUES AHÍ?</div>
+        <div style="font-size:.65rem;letter-spacing:.12em;color:rgba(255,255,255,.55);text-align:center;line-height:1.6;">
+          Llevas <strong style="color:#fff">30 segundos</strong> sin moverte.<br>Confirma que sigues conectado.
+        </div>
+        <div id="afkPingCountdown" style="font-family:'Oswald',sans-serif;font-size:2rem;color:var(--blood);text-shadow:0 0 15px var(--blood);">15</div>
+        <button onclick="LobbySettings.confirmActive()" style="
+          background:transparent;border:2px solid var(--blood);color:var(--blood);
+          font-family:'Share Tech Mono',monospace;font-size:.8rem;letter-spacing:.3em;
+          padding:11px 32px;cursor:pointer;text-transform:uppercase;
+          transition:background .15s,color .15s;
+        " onmouseover="this.style.background='var(--blood)';this.style.color='#000'"
+           onmouseout="this.style.background='transparent';this.style.color='var(--blood)'">
+          ✋ SIGO AQUÍ
+        </button>
+      </div>
     </div>
 
     <!-- ══ SHOP MODAL ══ -->
@@ -2046,6 +2084,12 @@ const S={
   specTarget:null,
   // hitbox debug
   showHitbox:false,
+  // AFK system
+  afk:false,
+  lobbyLastMoveTime:0,
+  afkPingActive:false,
+  afkPingTimer:null,
+  afkPingCountdown:15,
   // lms
   lms:false,lmsTrackerT:0,
   // lobby world player state (position persists while spectating)
@@ -2168,6 +2212,14 @@ const UI={
     UI.renderLobbyPlayers();
     Economy.updateDisplays();
     LobbySettings.loadHitbox();
+    // Iniciar timer AFK desde cero al entrar al lobby
+    S.lobbyLastMoveTime=Date.now();
+    S.afkPingActive=false;
+    if(S.afkPingTimer){clearInterval(S.afkPingTimer);S.afkPingTimer=null;}
+    LobbySettings._hidePingOverlay();
+    // Resetear estado AFK propio al volver al lobby (nueva ronda = nuevo comienzo)
+    if(S.afk){S.afk=false;const chk=document.getElementById('lobbyAfkToggle');if(chk)chk.checked=false;const hint=document.getElementById('lspAfkHint');if(hint)hint.style.display='none';}
+    const meP=S.players.find(p=>p.id===S.myId);if(meP)meP.afk=false;
     // Ensure keyboard input works in lobby
     setTimeout(()=>{document.getElementById('s-lobby').focus();},50);
   },
@@ -2179,7 +2231,8 @@ const UI={
       const div=document.createElement('div');
       div.className='lp-entry'+(p.id===S.myId?' me':'');
       const mal=p.id===S.myId?Stats.malicia||0:p.malicia||0;
-      div.innerHTML=`${p.host?'👑 ':'🎮 '}${p.username||p.name}<span class="lp-mal">⚡${mal}</span>`;
+      const afkBadge=p.afk?'<span style="font-size:.5rem;color:rgba(255,200,0,.7);margin-left:5px;">💤AFK</span>':'';
+      div.innerHTML=`${p.host?'👑 ':'🎮 '}${p.username||p.name}<span class="lp-mal">⚡${mal}</span>${afkBadge}`;
       list.appendChild(div);
     });
     UI.renderStatsPanel();
@@ -2688,6 +2741,18 @@ const LobbyWorld={
       if(!this.wallAtRoom(nx,p.y,r))p.x=nx;
       if(!this.wallAtRoom(p.x,ny,r))p.y=ny;
       p.facing=Math.atan2(dy,dx);
+      // Reset AFK timer on movement
+      S.lobbyLastMoveTime=Date.now();
+      if(S.afkPingActive)LobbySettings.confirmActive();
+      // Auto-desactivar AFK manual si el jugador empieza a moverse
+      if(S.afk)LobbySettings.setAfk(false);
+    }
+    // AFK auto-ping: si lleva 30s sin moverse y no está ya en ping ni en AFK manual
+    if(!S.afkPingActive&&!S.afk&&S.inLobbyWorld&&!S.running){
+      const idleMs=Date.now()-S.lobbyLastMoveTime;
+      if(S.lobbyLastMoveTime>0&&idleMs>=30000){
+        LobbySettings.showAfkPing();
+      }
     }
     // Camera — center the room
     LCAM.x=-(lcanvas.width/LSCALE - LROOM.W*TILE)/2;
@@ -3493,6 +3558,13 @@ const Net={
       // Sync malicia into S.players so hostStart picks correct killer
       const sp=S.players.find(x=>x.id===d.id);if(sp)sp.malicia=d.malicia||0;
       Net.broadcast(d);
+
+    } else if(d.t==='setAfk'){
+      // Un cliente cambió su estado AFK → actualizar S.players y re-evaluar countdown
+      const spAfk=S.players.find(x=>x.id===d.id);
+      if(spAfk){spAfk.afk=d.afk;}
+      Net.broadcast({t:'list',players:S.players,code:S.code||''});
+      Net.checkCd();
     }
   },
 
@@ -3573,9 +3645,16 @@ const Net={
     const idx=S.players.findIndex(p=>p.connId===conn.peer);
     const discId=idx!==-1?S.players[idx].id:null;
     if(idx!==-1)S.players.splice(idx,1);
-    // Si el juego está corriendo, marcar al jugador como muerto
+    // Si el juego está corriendo, manejar desconexión
     if(S.running&&S.isHost&&discId&&W.players&&W.players[discId]){
       const dp=W.players[discId];
+      // ── Si el que se fue es el KILLER: victoria inmediata a supervivientes ──
+      if(dp.role==='killer'){
+        dp.alive=false;dp.escaped=false;
+        Game.handleRoundEnd('survivors','⚡ El asesino se ha desconectado — los supervivientes ganan');
+        return; // handleRoundEnd ya hace el broadcast
+      }
+      // Superviviente desconectado: marcarlo muerto
       dp.alive=false;dp.escaped=false;
     }
     Net.broadcast({t:'list',players:S.players,code:S.code||''});
@@ -3587,7 +3666,9 @@ const Net={
   // ── Decide si arrancar la cuenta regresiva ───────────────────────────────────
   checkCd(){
     if(!S.isHost)return;
-    if(S.players.length>=2){
+    // Solo cuentan jugadores activos (no AFK)
+    const activePlayers=S.players.filter(p=>!p.afk);
+    if(activePlayers.length>=2){
       UI.startCd();
     } else {
       UI.stopCd();
@@ -6814,6 +6895,62 @@ const LobbySettings={
     // Sync in-game button
     const btn=document.getElementById('hitboxToggleBtn');
     if(btn)btn.classList.toggle('on',val);
+  },
+
+  // ── AFK ──────────────────────────────────────────────────────────────
+  setAfk(val){
+    S.afk=val;
+    const chk=document.getElementById('lobbyAfkToggle');
+    if(chk)chk.checked=val;
+    const hint=document.getElementById('lspAfkHint');
+    if(hint)hint.style.display=val?'block':'none';
+    // Sincronizar con el jugador local en S.players
+    const me=S.players.find(p=>p.id===S.myId);
+    if(me)me.afk=val;
+    // Notificar al host
+    if(S.isHost){
+      Net.checkCd();
+      Net.broadcast({t:'list',players:S.players,code:S.code||''});
+    } else {
+      Net.sendHost({t:'setAfk',id:S.myId,afk:val});
+    }
+    // Si vuelve de AFK, reiniciar timer de movimiento
+    if(!val) S.lobbyLastMoveTime=Date.now();
+  },
+
+  // Verificación de actividad: muestra el overlay con countdown
+  showAfkPing(){
+    if(S.afkPingActive||S.afk)return;
+    S.afkPingActive=true;
+    S.afkPingCountdown=15;
+    const ov=document.getElementById('afkPingOverlay');
+    if(ov){ov.style.display='flex';}
+    const cdEl=document.getElementById('afkPingCountdown');
+    if(cdEl)cdEl.textContent='15';
+    if(S.afkPingTimer)clearInterval(S.afkPingTimer);
+    S.afkPingTimer=setInterval(()=>{
+      S.afkPingCountdown--;
+      if(cdEl)cdEl.textContent=S.afkPingCountdown;
+      if(S.afkPingCountdown<=0){
+        clearInterval(S.afkPingTimer);S.afkPingTimer=null;
+        // Sin respuesta → activar AFK automáticamente
+        LobbySettings._hidePingOverlay();
+        LobbySettings.setAfk(true);
+      }
+    },1000);
+  },
+
+  // El jugador confirmó que sigue activo
+  confirmActive(){
+    if(S.afkPingTimer){clearInterval(S.afkPingTimer);S.afkPingTimer=null;}
+    S.afkPingActive=false;
+    S.lobbyLastMoveTime=Date.now();
+    LobbySettings._hidePingOverlay();
+  },
+
+  _hidePingOverlay(){
+    const ov=document.getElementById('afkPingOverlay');
+    if(ov)ov.style.display='none';
   },
 };
 
