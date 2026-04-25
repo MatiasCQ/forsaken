@@ -3823,9 +3823,45 @@ const Game={
   initFromSerial(gs){
     W={map:BASE_MAP.map(r=>[...r]),gens:GEN_SPAWNS.map((g,i)=>({id:'g'+i,x:g.x,y:g.y,on:false,prog:0})),players:{},time:gs.time||300};
     S.players.forEach((p,i)=>{
-      W.players[p.id]={id:p.id,name:p.name,role:'survivor',alive:true,escaped:false,x:0,y:0,hp:SHP,maxHp:SHP,stamina:SMAX,maxStamina:SMAX,sprinting:false,staminaCd:0,interacting:false,interactTarget:null,inp:{},shift:false,ePrev:false,facing:0,m1Cd:0,m1Prev:false,m1HitSet:null,bleedTicks:0,bleedTimer:0,color:p.color||PCOLORS[i%PCOLORS.length]};
+      // FIX: inicializar con TODOS los campos igual que initPlayers,
+      // para que applyState no encuentre propiedades undefined
+      W.players[p.id]={
+        id:p.id,name:p.name,role:'survivor',alive:true,escaped:false,
+        x:0,y:0,hp:SHP,maxHp:SHP,stamina:SMAX,maxStamina:SMAX,
+        sprinting:false,staminaCd:0,interacting:false,interactTarget:null,
+        inp:{},shift:false,ePrev:false,facing:0,m1Cd:0,m1Prev:false,m1HitSet:null,
+        bleedTicks:0,bleedTimer:0,color:p.color||PCOLORS[i%PCOLORS.length],
+        qCd:0,qPrev:false,rPrev:false,tPrev:false,
+        bloxyCd:0,bloxyActive:false,bloxyTimer:0,speedBuff:1,
+        bloxyDrinking:false,bloxyDrinkTimer:0,
+        ssCd:0,ssDrinking:false,ssDrinkTimer:0,ssActive:false,ssTimer:0,ssShield:0,
+        ssSpeedActive:false,ssSpeedTimer:0,
+        enrageCd:0,enraged:false,enrageTimer:0,enrageAuraTarget:null,enrageAuraLinger:0,enrageStamCapTimer:0,
+        gbCd:0,gbEating:false,gbEatTimer:0,gbActive:false,gbTimer:0,
+        killerChar:'slasher',survivorChar:'noob',
+        amaxPlantCd:0,amaxPlantActive:false,amaxPlantTimer:0,amaxPlantShootTimer:0,amaxPlantTurnTimer:0,amaxPlantRange:AMAX_Q_RANGE,
+        amaxHealCd:0,amaxHealing:false,amaxHealTimer:0,amaxHealAccum:0,amaxRUnlocked:false,
+        amaxShieldCd:0,amaxShieldActive:false,amaxShieldTimer:0,amaxShieldGotHit:false,amaxSlowTimer:0,
+        amaxStunned:false,amaxStunTimer:0,amaxBlindTimer:0,amaxRevealedTimer:0,
+        nicoHasKnife:true,nicoKnifeRecoverTimer:0,
+        nicoKnifeProjX:0,nicoKnifeProjY:0,nicoKnifeVx:0,nicoKnifeVy:0,nicoKnifeFlying:false,
+        nicoCharge:false,nicoChargeAng:0,nicoChargeTimer:0,nicoChargeHit:false,
+        nicoSlow:false,nicoSlowTimer:0,nicoMarkTargets:{},
+        nicoInvis:false,nicoInvisStill:false,nicoInvisStillTimer:0,nicoInvisFadeTimer:0,
+        nicoInvisDurTimer:0,nicoInvisRevive:false,nicoInvisReviveTimer:0,nicoRCd:0,nicoECd:0,
+        nicoBerserk:false,nicoBerserkTimer:0,nicoBerserkStamGained:0,nicoKillCount:0,
+        nicoBerserkReady:0,nicoBerserkPrev:false,
+        nicoBloodTrailTarget:null,nicoBloodTrailTimer:0,nicoMarked:false,
+        beheadDashing:false,beheadDashTimer:0,beheadDashAng:0,
+        beheadHitTimer:0,beheadHit:false,beheadSlow:false,beheadSlowTimer:0,
+        comboCd:0,comboActive:false,comboLocked:false,comboLockedTimer:0,
+        comboStunned:false,comboStunTimer:0,comboKbVx:0,comboKbVy:0,comboKbTimer:0,
+      };
     });
     Game.applyState(gs);
+    // FIX cámara: posicionar la cámara correctamente tras el primer applyState
+    const me=W.players[S.myId];
+    if(me)Game.updateCamera(me);
   },
 
   setupCanvas(){
@@ -4281,7 +4317,8 @@ const Game={
       if(S.lms&&S.lmsTrackerT>0&&!S.isHost)S.lmsTrackerT=Math.max(0,S.lmsTrackerT-dt);
 
       const me=W.players[S.myId];
-      if(me&&me.alive&&!S.isDeadSpec)Game.updateCamera(me);
+      // FIX: actualizar cámara aunque me.alive sea false (evita congelamiento por desync de 1 frame)
+      if(me&&!S.isDeadSpec)Game.updateCamera(me);
       else if(S.isDeadSpec)Game.updateCameraSpec();
 
       Game.render(me);
@@ -6813,6 +6850,10 @@ document.getElementById('s-lobby').addEventListener('click',function(e){
   if(!S.running||S.isHost||S.isDeadSpec)return;
   const me=W.players?.[S.myId];
   if(me)me.facing=Inp.facing;
+  // FIX: sólo enviar inputs cuando el jugador ya existe en W.players del cliente.
+  // Si me es null, W.players aún no está listo → esperar al próximo frame
+  // para evitar que el host descarte el input (porque W.players[d.pid] tampoco existe aún).
+  if(!me)return;
   Net.sendHost({
     t:'input',pid:S.myId,
     inp:{...Inp.k},shift:Inp.sh,e:Inp.e,
