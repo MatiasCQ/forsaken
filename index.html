@@ -1339,6 +1339,34 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
           </div>
           <div class="ability-key">T</div>
         </div>
+        <!-- AMAXGE5 ability slots -->
+        <div class="ability-slot" id="amaxgeQSlot" style="display:none">
+          <div class="ability-name">REFERENCIA</div>
+          <div class="ability-icon-wrap" id="amaxgeQWrap">
+            <div class="ability-cd-overlay" id="amaxgeQOverlay"></div>
+            <div class="ability-icon-emoji">🫛</div>
+            <div class="ability-cd-num" id="amaxgeQNum" style="display:none"></div>
+          </div>
+          <div class="ability-key">Q</div>
+        </div>
+        <div class="ability-slot" id="amaxgeESlot" style="display:none">
+          <div class="ability-name">LORE DE FNAF</div>
+          <div class="ability-icon-wrap" id="amaxgeEWrap">
+            <div class="ability-cd-overlay" id="amaxgeEOverlay"></div>
+            <div class="ability-icon-emoji">📖</div>
+            <div class="ability-cd-num" id="amaxgeENum" style="display:none"></div>
+          </div>
+          <div class="ability-key">E</div>
+        </div>
+        <div class="ability-slot" id="amaxgeRSlot" style="display:none">
+          <div class="ability-name" id="amaxgeRName">ESCUDITO</div>
+          <div class="ability-icon-wrap" id="amaxgeRWrap">
+            <div class="ability-cd-overlay" id="amaxgeROverlay"></div>
+            <div class="ability-icon-emoji" id="amaxgeREmoji">🛡</div>
+            <div class="ability-cd-num" id="amaxgeRNum" style="display:none"></div>
+          </div>
+          <div class="ability-key">R</div>
+        </div>
       </div>
     </div>
   </div>
@@ -1882,6 +1910,29 @@ const NICO_T_STAM_REGEN = 35;
 const NICO_T_STAM_MAX = 85;
 const NICO_T_DETECT_BONUS = 1.10;
 
+// ── AMAXGE5 — constantes ──
+const AMAXGE_HP            = 90;
+const AMAXGE_Q_CD          = 40;
+const AMAXGE_Q_SHOOT_INT   = 5;    // segundos entre disparos del guisante
+const AMAXGE_Q_ROT_INT     = 3;    // segundos entre rotaciones hacia el killer
+const AMAXGE_Q_BASE_RANGE  = 40;   // studs (se multiplica por TILE en runtime)
+const AMAXGE_Q_RANGE_RED   = 0.20; // reducción por cada AMaxGE5 extra
+const AMAXGE_Q_BLIND_DUR   = 0.8;
+const AMAXGE_Q_REVEAL_DUR  = 5;
+const AMAXGE_Q_PROJ_SPEED  = 320;  // px/s
+const AMAXGE_E_CD          = 20;
+const AMAXGE_E_HEAL_RATE   = 1.5;  // hp/s
+const AMAXGE_E_MAX_DUR     = 5;
+const AMAXGE_E_MIN_UNLOCK  = 3;    // segundos mínimos para desbloquear R
+const AMAXGE_E_RANGE       = 2.2;  // en TILE (radio de zona de curación)
+const AMAXGE_R_CD          = 45;
+const AMAXGE_R_SHIELD_DUR  = 2.5;
+const AMAXGE_R_SHIELD_LMS  = 1.0;
+const AMAXGE_R_PUSH        = 5;    // studs (×TILE)
+const AMAXGE_R_STUN_DUR    = 2.0;
+const AMAXGE_R_SLOW_DUR    = 3.0;
+const AMAXGE_R_DIZZY_DUR   = 2.0;
+
 // ── Habilidad E del Killer: COMBO (2 tajos + motosierra) ──
 const COMBO_CD = 32;          // cooldown normal
 const COMBO_CD_ENRAGED = 24;  // [ENRAGED]
@@ -2057,6 +2108,7 @@ let lcanvas,lctx,LSCALE=1,LCAM={x:0,y:0};
 
 // Slash fx
 let slashFX=[];
+let amaxgePeaProjs=[]; // { x, y, vx, vy, ownerId, distTraveled }
 
 // ══════════════════════════════════════════
 //  INPUT
@@ -2137,6 +2189,7 @@ function pointInRotRect(px,py,cx,cy,hw,hh,ang){
   return Math.abs(dx*cosA-dy*sinA)<=hw&&Math.abs(dx*sinA+dy*cosA)<=hh;
 }
 function isNicostos(p){return p&&p.role==='killer'&&p.killerChar==='nicostos';}
+function isAmaxge5(p){return p&&p.role==='survivor'&&p.survivorChar==='amaxge5';}
 
 // ══════════════════════════════════════════
 //  UI
@@ -2396,48 +2449,92 @@ const UI={
       ['nicoM1Slot','nicoQSlot','nicoESlot','nicoRSlot','nicoTSlot'].forEach(id=>{
         const el=document.getElementById(id);if(el)el.style.display='none';
       });
-      // ── Bloxy Cola (Q) ──
-      const bloxySlot=document.getElementById('abilityBloxySlot');
-      if(bloxySlot)bloxySlot.style.display='flex';
-      const bCdPct=me.bloxyCd>0?me.bloxyCd/BLOXY_CD:0;
-      document.getElementById('abilityBloxyOverlay').style.transform=`scaleY(${bCdPct})`;
-      const isDrinking=me.bloxyDrinking||false;
-      document.getElementById('abilityBloxyWrap').className='ability-icon-wrap'+(me.bloxyActive?'ready':isDrinking?'ready':bCdPct>0?' on-cd':' ready');
-      const bNum=document.getElementById('abilityBloxyNum');
-      bNum.style.display=(bCdPct>0&&!me.bloxyActive&&!isDrinking)?'flex':'none';
-      if(bCdPct>0&&!me.bloxyActive&&!isDrinking)bNum.textContent=Math.ceil(me.bloxyCd)+'s';
-      document.getElementById('bloxyName').textContent=isDrinking?'🥤 BEBIENDO...':(me.bloxyActive?(S.lms?'VEL. I ACTIVA':'VEL. II ACTIVA'):'BLOXY COLA');
-      // ── Slate Skin (E) ──
-      const ssSlot=document.getElementById('abilitySSSlot');
-      if(ssSlot)ssSlot.style.display='flex';
-      const ssCdPct=me.ssCd>0?me.ssCd/SS_CD:0;
-      const isSSDrinking=me.ssDrinking||false;
-      const isSSActive=me.ssActive||false;
-      const isSSSpeed=me.ssSpeedActive||false;
-      document.getElementById('abilitySSOverlay').style.transform=`scaleY(${ssCdPct})`;
-      document.getElementById('abilitySSWrap').className='ability-icon-wrap'+(isSSActive?'ready':isSSDrinking?'ready':ssCdPct>0?' on-cd':' ready');
-      const ssNum=document.getElementById('abilitySSNum');
-      ssNum.style.display=(ssCdPct>0||isSSDrinking||isSSActive)?'flex':'none';
-      if(isSSDrinking)ssNum.textContent='🧪';
-      else if(isSSActive)ssNum.textContent=me.ssTimer?me.ssTimer.toFixed(1):'';
-      else if(ssCdPct>0)ssNum.textContent=Math.ceil(me.ssCd)+'s';
-      const ssLabel=document.getElementById('ssName');
-      if(ssLabel)ssLabel.textContent=isSSDrinking?'🧪 BEBIENDO...':(isSSActive?'SLATESKIN II':(isSSSpeed?'⚡ VEL. ACTIVA':'SLATE SKIN'));
-      // ── Ghost Burger (R) ──
-      const gbSlot=document.getElementById('abilityGBSlot');
-      if(gbSlot)gbSlot.style.display='flex';
-      const gbCdPct=me.gbCd>0?me.gbCd/GB_CD:0;
-      const isGBEating=me.gbEating||false;
-      const isGBActive=me.gbActive||false;
-      document.getElementById('abilityGBOverlay').style.transform=`scaleY(${gbCdPct})`;
-      document.getElementById('abilityGBWrap').className='ability-icon-wrap'+(isGBActive?'ready':isGBEating?'ready':gbCdPct>0?' on-cd':' ready');
-      const gbNum=document.getElementById('abilityGBNum');
-      gbNum.style.display=(gbCdPct>0||isGBEating||isGBActive)?'flex':'none';
-      if(isGBEating)gbNum.textContent='🍔';
-      else if(isGBActive)gbNum.textContent=me.gbTimer?me.gbTimer.toFixed(1):'';
-      else if(gbCdPct>0)gbNum.textContent=Math.ceil(me.gbCd)+'s';
-      const gbLabel=document.getElementById('gbName');
-      if(gbLabel)gbLabel.textContent=isGBEating?'👻 COMIENDO...':(isGBActive?'👻 INVIS IV':'GHOST BURGER');
+      // Ability Slot Toggles
+      const aQ=document.getElementById('amaxgeQSlot');
+      const aE=document.getElementById('amaxgeESlot');
+      const aR=document.getElementById('amaxgeRSlot');
+      const nQ=document.getElementById('abilityBloxySlot');
+      const nE=document.getElementById('abilitySSSlot');
+      const nR=document.getElementById('abilityGBSlot');
+      const isAmx=isAmaxge5(me);
+      if(aQ)aQ.style.display=isAmx?'flex':'none';
+      if(aE)aE.style.display=isAmx?'flex':'none';
+      if(aR)aR.style.display=isAmx?'flex':'none';
+      if(nQ)nQ.style.display=isAmx?'none':'flex';
+      if(nE)nE.style.display=isAmx?'none':'flex';
+      if(nR)nR.style.display=isAmx?'none':'flex';
+
+      if(isAmx){
+        // ── Referencia?????!!!!! (Q) ──
+        const qPct=me.amaxgeQCd>0?me.amaxgeQCd/AMAXGE_Q_CD:0;
+        const qPlant=me.amaxgePea!==null;
+        document.getElementById('amaxgeQOverlay').style.transform=`scaleY(${qPct})`;
+        document.getElementById('amaxgeQWrap').className='ability-icon-wrap'+(qPlant?'ready':qPct>0?' on-cd':' ready');
+        const qNum=document.getElementById('amaxgeQNum');
+        qNum.style.display=(qPct>0&&!qPlant)?'flex':'none';
+        if(qPct>0&&!qPlant)qNum.textContent=Math.ceil(me.amaxgeQCd)+'s';
+
+        // ── Lore de Fnaf (E) ──
+        const ePct=me.amaxgeECd>0?me.amaxgeECd/AMAXGE_E_CD:0;
+        const eActive=me.amaxgeEActive||false;
+        document.getElementById('amaxgeEOverlay').style.transform=`scaleY(${ePct})`;
+        document.getElementById('amaxgeEWrap').className='ability-icon-wrap'+(eActive?'ready':ePct>0?' on-cd':' ready');
+        const eNum=document.getElementById('amaxgeENum');
+        eNum.style.display=(ePct>0||eActive)?'flex':'none';
+        if(eActive)eNum.textContent=me.amaxgeETimer?me.amaxgeETimer.toFixed(1):'';
+        else if(ePct>0)eNum.textContent=Math.ceil(me.amaxgeECd)+'s';
+
+        // ── Escudito (R) ──
+        const rPct=me.amaxgeRCd>0?me.amaxgeRCd/AMAXGE_R_CD:0;
+        const rActive=me.amaxgeRActive||false;
+        const rCharges=me.amaxgeRCharges||0;
+        document.getElementById('amaxgeROverlay').style.transform=`scaleY(${rPct})`;
+        document.getElementById('amaxgeRWrap').className='ability-icon-wrap'+(rActive?'ready':rPct>0||rCharges<=0?' on-cd':' ready');
+        const rNum=document.getElementById('amaxgeRNum');
+        rNum.style.display=(rPct>0||rActive||rCharges<=0)?'flex':'none';
+        if(rActive)rNum.textContent=me.amaxgeRTimer?me.amaxgeRTimer.toFixed(1):'';
+        else if(rCharges<=0)rNum.textContent='🔒';
+        else if(rPct>0)rNum.textContent=Math.ceil(me.amaxgeRCd)+'s';
+        const rChargesEl=document.getElementById('amaxgeRCharges');
+        if(rChargesEl)rChargesEl.textContent=rCharges>0?`x${rCharges}`:'';
+      } else {
+        // ── Bloxy Cola (Q) ──
+        const bCdPct=me.bloxyCd>0?me.bloxyCd/BLOXY_CD:0;
+        document.getElementById('abilityBloxyOverlay').style.transform=`scaleY(${bCdPct})`;
+        const isDrinking=me.bloxyDrinking||false;
+        document.getElementById('abilityBloxyWrap').className='ability-icon-wrap'+(me.bloxyActive?'ready':isDrinking?'ready':bCdPct>0?' on-cd':' ready');
+        const bNum=document.getElementById('abilityBloxyNum');
+        bNum.style.display=(bCdPct>0&&!me.bloxyActive&&!isDrinking)?'flex':'none';
+        if(bCdPct>0&&!me.bloxyActive&&!isDrinking)bNum.textContent=Math.ceil(me.bloxyCd)+'s';
+        document.getElementById('bloxyName').textContent=isDrinking?'🥤 BEBIENDO...':(me.bloxyActive?(S.lms?'VEL. I ACTIVA':'VEL. II ACTIVA'):'BLOXY COLA');
+        // ── Slate Skin (E) ──
+        const ssCdPct=me.ssCd>0?me.ssCd/SS_CD:0;
+        const isSSDrinking=me.ssDrinking||false;
+        const isSSActive=me.ssActive||false;
+        const isSSSpeed=me.ssSpeedActive||false;
+        document.getElementById('abilitySSOverlay').style.transform=`scaleY(${ssCdPct})`;
+        document.getElementById('abilitySSWrap').className='ability-icon-wrap'+(isSSActive?'ready':isSSDrinking?'ready':ssCdPct>0?' on-cd':' ready');
+        const ssNum=document.getElementById('abilitySSNum');
+        ssNum.style.display=(ssCdPct>0||isSSDrinking||isSSActive)?'flex':'none';
+        if(isSSDrinking)ssNum.textContent='🧪';
+        else if(isSSActive)ssNum.textContent=me.ssTimer?me.ssTimer.toFixed(1):'';
+        else if(ssCdPct>0)ssNum.textContent=Math.ceil(me.ssCd)+'s';
+        const ssLabel=document.getElementById('ssName');
+        if(ssLabel)ssLabel.textContent=isSSDrinking?'🧪 BEBIENDO...':(isSSActive?'SLATESKIN II':(isSSSpeed?'⚡ VEL. ACTIVA':'SLATE SKIN'));
+        // ── Ghost Burger (R) ──
+        const gbCdPct=me.gbCd>0?me.gbCd/GB_CD:0;
+        const isGBEating=me.gbEating||false;
+        const isGBActive=me.gbActive||false;
+        document.getElementById('abilityGBOverlay').style.transform=`scaleY(${gbCdPct})`;
+        document.getElementById('abilityGBWrap').className='ability-icon-wrap'+(isGBActive?'ready':isGBEating?'ready':gbCdPct>0?' on-cd':' ready');
+        const gbNum=document.getElementById('abilityGBNum');
+        gbNum.style.display=(gbCdPct>0||isGBEating||isGBActive)?'flex':'none';
+        if(isGBEating)gbNum.textContent='🍔';
+        else if(isGBActive)gbNum.textContent=me.gbTimer?me.gbTimer.toFixed(1):'';
+        else if(gbCdPct>0)gbNum.textContent=Math.ceil(me.gbCd)+'s';
+        const gbLabel=document.getElementById('gbName');
+        if(gbLabel)gbLabel.textContent=isGBEating?'👻 COMIENDO...':(isGBActive?'👻 INVIS IV':'GHOST BURGER');
+      }
     }
     // Bloxy buff bar
     const bbBar=document.getElementById('bloxyBuffBar');
@@ -3621,6 +3718,16 @@ function doSlashHit(killerPid,ang,slashIdx,dmg){
     if(k.m1HitSet.has(s.id))return;
     if(pointInRotRect(s.x,s.y,cx,cy,HB_W/2,HB_H/2,ang)){
       k.m1HitSet.add(s.id);
+      // Escudito counterattack check
+      if(s.amaxgeRActive){
+        s.amaxgeRActive=false;s.amaxgeRHit=true;
+        const dx2=k.x-s.x,dy2=k.y-s.y,d2=Math.hypot(dx2,dy2)||1;
+        const push=AMAXGE_R_PUSH*TILE;
+        if(!wallAt(k.x+dx2/d2*push,k.y,TILE*.28,'killer'))k.x+=dx2/d2*push;
+        if(!wallAt(k.x,k.y+dy2/d2*push,TILE*.28,'killer'))k.y+=dy2/d2*push;
+        k.amaxgeStunned=true;k.amaxgeStunTimer=AMAXGE_R_STUN_DUR;
+        return; // no damage to survivor
+      }
       applyShieldDamage(s, dmg);
       if(s.hp<=0){s.hp=0;s.alive=false;s.bleedTicks=0;
         if(S.isHost){W.time=Math.min(W.time+KILL_TIME_BONUS,GAME_DUR*2);}
@@ -3725,10 +3832,18 @@ const Game={
         const equipped=p.equippedKiller||Stats.equippedKiller||'';
         if(equipped==='nicostos')killerChar='nicostos';
       }
+      // Detect which survivor char to use
+      let survivorChar='noob';
+      if(role==='survivor'){
+        const equippedS=p.equippedSurvivor||Stats.equippedSurvivor||'';
+        if(equippedS==='amaxge5')survivorChar='amaxge5';
+      }
+      // HP override for amaxge5
+      const baseHp=role==='killer'?KHP:(survivorChar==='amaxge5'?AMAXGE_HP:SHP);
       W.players[p.id]={
         id:p.id,name:p.name,username:p.username||p.name,role,alive:true,escaped:false,
         x:sp.x*TILE+TILE/2,y:sp.y*TILE+TILE/2,
-        hp:role==='killer'?KHP:SHP,maxHp:role==='killer'?KHP:SHP,
+        hp:baseHp,maxHp:baseHp,
         stamina:maxSt,maxStamina:maxSt,sprinting:false,staminaCd:0,
         interacting:false,interactTarget:null,
         inp:{},shift:false,ePrev:false,facing:0,
@@ -3739,7 +3854,7 @@ const Game={
         color:p.color||PCOLORS[i%PCOLORS.length],
         enrageCd:0,enraged:false,enrageTimer:0,enrageAuraTarget:null,enrageAuraLinger:0,enrageStamCapTimer:0,rPrev:false,
         gbCd:0,gbEating:false,gbEatTimer:0,gbActive:false,gbTimer:0,
-        killerChar,
+        killerChar,survivorChar,
         // Nicostos state
         nicoHasKnife:true,
         nicoKnifeRecoverTimer:0,
@@ -3752,6 +3867,17 @@ const Game={
         nicoBerserk:false,nicoBerserkTimer:0,nicoBerserkStamGained:0,nicoKillCount:0,nicoBerserkReady:0,nicoBerserkPrev:false,
         nicoBloodTrailTarget:null,nicoBloodTrailTimer:0,
         tPrev:false,
+        // AMaxGe5 state
+        amaxgeQCd:0, amaxgePea:null, // { x, y, ang, shootTimer, rotTimer }
+        amaxgeECd:0, amaxgeEActive:false, amaxgeETimer:0, amaxgeEHealedTime:0,
+        amaxgeRCd:0, amaxgeRCharges:0, amaxgeRActive:false, amaxgeRTimer:0, amaxgeRHit:false,
+        // Effects (applied to any player)
+        amaxgeBlinded:false, amaxgeBlindTimer:0,   // killer blinded
+        amaxgeRevealed:false, amaxgeRevealTimer:0, // killer revealed to survivors
+        amaxgeStunned:false, amaxgeStunTimer:0,    // killer stunned by counterattack
+        amaxgeDizzy:false, amaxgeDizzyTimer:0,     // amaxge5 dizzy after shield no-hit
+        amaxgeSlow2:false, amaxgeSlow2Timer:0,     // slow II after shield no-hit
+        amaxgeMarked:false,                         // amaxge5 visible to all during E
       };
     });
   },
@@ -3957,6 +4083,16 @@ const Game={
                 if(s.role!=='survivor'||!s.alive)return;
                 if(pointInRotRect(s.x,s.y,cx,cy,Q_HB_SIZE/2,Q_HB_SIZE/2,ang)||Math.hypot(s.x-p.x,s.y-p.y)<TILE*1.02){
                   hitSomeone=true;
+                  // Escudito counterattack check
+                  if(s.amaxgeRActive){
+                    s.amaxgeRActive=false;s.amaxgeRHit=true;
+                    const dx2=p.x-s.x,dy2=p.y-s.y,d2=Math.hypot(dx2,dy2)||1;
+                    const push=AMAXGE_R_PUSH*TILE;
+                    if(!wallAt(p.x+dx2/d2*push,p.y,TILE*.28,'killer'))p.x+=dx2/d2*push;
+                    if(!wallAt(p.x,p.y+dy2/d2*push,TILE*.28,'killer'))p.y+=dy2/d2*push;
+                    p.amaxgeStunned=true;p.amaxgeStunTimer=AMAXGE_R_STUN_DUR;
+                    return; // skip damage and helpless
+                  }
                   applyShieldDamage(s, beheadDmg);
                   s.helpless=true;s.helplessTimer=Q_HELPLESS_DUR;
                   if(s.hp<=0){s.hp=0;s.alive=false;s.bleedTicks=0;
@@ -4030,6 +4166,16 @@ const Game={
                   if(Math.hypot(s.x-p.x,s.y-p.y)<TILE*1.3){
                     p.nicoChargeHit=true;
                     p.nicoCharge=false;
+                    // Escudito counterattack check
+                    if(s.amaxgeRActive){
+                      s.amaxgeRActive=false;s.amaxgeRHit=true;
+                      const dx2=p.x-s.x,dy2=p.y-s.y,d2=Math.hypot(dx2,dy2)||1;
+                      const push=AMAXGE_R_PUSH*TILE;
+                      if(!wallAt(p.x+dx2/d2*push,p.y,TILE*.28,'killer'))p.x+=dx2/d2*push;
+                      if(!wallAt(p.x,p.y+dy2/d2*push,TILE*.28,'killer'))p.y+=dy2/d2*push;
+                      p.amaxgeStunned=true;p.amaxgeStunTimer=AMAXGE_R_STUN_DUR;
+                      return; // skip grab
+                    }
                     // Grab: 10 dmg + 20 slam = 30 total
                     applyShieldDamage(s,NICO_Q_DMG_GRAB+NICO_Q_DMG_SLAM);
                     s.bleedTicks=BLEED_TICKS;s.bleedTimer=BLEED_TICK;
@@ -4069,6 +4215,16 @@ const Game={
                   if(s.role!=='survivor'||!s.alive)return;
                   if(Math.hypot(s.x-p.nicoKnifeProjX,s.y-p.nicoKnifeProjY)<TILE*.7){
                     p.nicoKnifeFlying=false;p.nicoKnifeRecoverTimer=NICO_E_KNIFE_RECOVER;
+                    // Escudito counterattack check
+                    if(s.amaxgeRActive){
+                      s.amaxgeRActive=false;s.amaxgeRHit=true;
+                      const dx2=p.x-s.x,dy2=p.y-s.y,d2=Math.hypot(dx2,dy2)||1;
+                      const push=AMAXGE_R_PUSH*TILE;
+                      if(!wallAt(p.x+dx2/d2*push,p.y,TILE*.28,'killer'))p.x+=dx2/d2*push;
+                      if(!wallAt(p.x,p.y+dy2/d2*push,TILE*.28,'killer'))p.y+=dy2/d2*push;
+                      p.amaxgeStunned=true;p.amaxgeStunTimer=AMAXGE_R_STUN_DUR;
+                      return; // skip damage
+                    }
                     applyShieldDamage(s,NICO_E_DMG);
                     // Mark target: slow I for 10s — apply immediately
                     if(!p.nicoMarkTargets)p.nicoMarkTargets={};
@@ -4127,7 +4283,96 @@ const Game={
               if(p.nicoBerserkTimer<=0){p.nicoBerserk=false;p.nicoBerserkStamGained=0;}
             }
           }
+          // ── AMAXGE5 ticks ──
+          if(isAmaxge5(p)){
+            if(p.amaxgeQCd>0)p.amaxgeQCd=Math.max(0,p.amaxgeQCd-dt);
+            // Pea plant timers
+            if(p.amaxgePea){
+              const pea=p.amaxgePea;
+              pea.rotTimer=Math.max(0,(pea.rotTimer||AMAXGE_Q_ROT_INT)-dt);
+              if(pea.rotTimer<=0){
+                pea.rotTimer=AMAXGE_Q_ROT_INT;
+                // Rotate toward killer
+                const killer=Object.values(W.players).find(k=>k.role==='killer'&&k.alive);
+                if(killer){pea.ang=Math.atan2(killer.y-pea.y,killer.x-pea.x);}
+              }
+              pea.shootTimer=Math.max(0,(pea.shootTimer||AMAXGE_Q_SHOOT_INT)-dt);
+              if(pea.shootTimer<=0){
+                pea.shootTimer=AMAXGE_Q_SHOOT_INT;
+                // Count amaxge5 survivors to reduce range
+                const amaxgeCount=Object.values(W.players).filter(x=>isAmaxge5(x)&&x.alive).length;
+                const rangeMult=Math.max(0.2,1-(amaxgeCount-1)*AMAXGE_Q_RANGE_RED);
+                const maxDist=AMAXGE_Q_BASE_RANGE*TILE*rangeMult;
+                // Shoot projectile in pea.ang direction
+                amaxgePeaProjs.push({
+                  x:pea.x,y:pea.y,
+                  vx:Math.cos(pea.ang),vy:Math.sin(pea.ang),
+                  ownerId:p.id,distTraveled:0,maxDist,
+                });
+              }
+            }
+            // E — Lore de Fnaf (healing)
+            if(p.amaxgeECd>0)p.amaxgeECd=Math.max(0,p.amaxgeECd-dt);
+            if(p.amaxgeEActive){
+              p.amaxgeETimer=Math.max(0,(p.amaxgeETimer||0)-dt);
+              p.amaxgeEHealedTime=(p.amaxgeEHealedTime||0)+dt;
+              // Heal self and nearby survivors
+              const healRange=AMAXGE_E_RANGE*TILE;
+              Object.values(W.players).forEach(s=>{
+                if(s.role!=='survivor'||!s.alive)return;
+                if(Math.hypot(s.x-p.x,s.y-p.y)<=healRange){
+                  s.hp=Math.min(s.maxHp,s.hp+AMAXGE_E_HEAL_RATE*dt);
+                }
+              });
+              if(p.amaxgeETimer<=0){
+                // End of heal — check unlock
+                if((p.amaxgeEHealedTime||0)>=AMAXGE_E_MIN_UNLOCK){
+                  p.amaxgeRCharges=(p.amaxgeRCharges||0)+1;
+                }
+                p.amaxgeEActive=false;p.amaxgeMarked=false;p.amaxgeEHealedTime=0;
+              }
+            }
+            // R — Escudito timers
+            if(p.amaxgeRCd>0)p.amaxgeRCd=Math.max(0,p.amaxgeRCd-dt);
+            if(p.amaxgeRActive){
+              p.amaxgeRTimer=Math.max(0,(p.amaxgeRTimer||0)-dt);
+              if(p.amaxgeRTimer<=0){
+                p.amaxgeRActive=false;
+                if(!p.amaxgeRHit){
+                  // No hit — apply Slow II + Dizzy
+                  p.amaxgeSlow2=true;p.amaxgeSlow2Timer=AMAXGE_R_SLOW_DUR;
+                  p.speedBuff=0.6;
+                  p.amaxgeDizzy=true;p.amaxgeDizzyTimer=AMAXGE_R_DIZZY_DUR;
+                }
+              }
+            }
+            // Slow II after shield
+            if(p.amaxgeSlow2){
+              p.amaxgeSlow2Timer=Math.max(0,(p.amaxgeSlow2Timer||0)-dt);
+              if(p.amaxgeSlow2Timer<=0){p.amaxgeSlow2=false;if(p.speedBuff===0.6)p.speedBuff=1;}
+            }
+            // Dizzy timer
+            if(p.amaxgeDizzy){
+              p.amaxgeDizzyTimer=Math.max(0,(p.amaxgeDizzyTimer||0)-dt);
+              if(p.amaxgeDizzyTimer<=0)p.amaxgeDizzy=false;
+            }
+          }
+          // Effects on any player (blind, reveal, stun)
+          if(p.amaxgeBlinded){
+            p.amaxgeBlindTimer=Math.max(0,(p.amaxgeBlindTimer||0)-dt);
+            if(p.amaxgeBlindTimer<=0)p.amaxgeBlinded=false;
+          }
+          if(p.amaxgeRevealed){
+            p.amaxgeRevealTimer=Math.max(0,(p.amaxgeRevealTimer||0)-dt);
+            if(p.amaxgeRevealTimer<=0)p.amaxgeRevealed=false;
+          }
+          if(p.amaxgeStunned){
+            p.amaxgeStunTimer=Math.max(0,(p.amaxgeStunTimer||0)-dt);
+            if(p.amaxgeStunTimer<=0)p.amaxgeStunned=false;
+          }
         }); // end forEach players (timers)
+
+        // (Projectile logic moved to run on both host and clients below)
 
         Object.values(W.players).forEach(p=>{
           if(!p.alive||p.role!=='survivor'||!p.interacting)return;
@@ -4172,7 +4417,26 @@ const Game={
         Game.checkWin();
         sendT+=dt;
         if(sendT>=.033){sendT=0;Net.broadcast({t:'gs',gs:Game.serial()});}
-      }
+      } // end if(S.isHost)
+
+      // ── Amaxge5 pea projectile movement + hit detection (run on all clients for smooth visual) ──
+      amaxgePeaProjs=amaxgePeaProjs.filter(proj=>{
+        const speed=AMAXGE_Q_PROJ_SPEED*dt;
+        proj.x+=proj.vx*speed; proj.y+=proj.vy*speed;
+        proj.distTraveled=(proj.distTraveled||0)+speed;
+        // Wall or max range
+        if(wallAt(proj.x,proj.y,4)||proj.distTraveled>=proj.maxDist)return false;
+        // Hit killer
+        const killer=Object.values(W.players).find(k=>k.role==='killer'&&k.alive);
+        if(killer&&Math.hypot(proj.x-killer.x,proj.y-killer.y)<TILE*0.7){
+          if(S.isHost){
+            killer.amaxgeBlinded=true;killer.amaxgeBlindTimer=AMAXGE_Q_BLIND_DUR;
+            killer.amaxgeRevealed=true;killer.amaxgeRevealTimer=AMAXGE_Q_REVEAL_DUR;
+          }
+          return false;
+        }
+        return true;
+      });
 
       slashFX=slashFX.filter(s=>{s.life-=dt;return s.life>0;});
       if(S.lms&&S.lmsTrackerT>0&&!S.isHost)S.lmsTrackerT=Math.max(0,S.lmsTrackerT-dt);
@@ -4212,11 +4476,15 @@ const Game={
   moveP(p,dt,inp,sprinting){
     // Block all movement during combo stun (survivor) or killer combo lock
     if(p.comboStunned||p.comboLocked)return;
+    // Block killer movement when stunned by Escudito counterattack
+    if(p.role==='killer'&&p.amaxgeStunned)return;
     // Nicostos: charge handles its own movement; still/revive blocks
     if(isNicostos(p)){
       if(p.nicoCharge)return; // charge handles movement itself
       if(p.nicoInvisStill||p.nicoInvisRevive)return; // locked during still/revive
     }
+    // AMaxGe5: can't move during Lore de Fnaf healing
+    if(isAmaxge5(p)&&p.amaxgeEActive)return;
     let dx=0,dy=0;
     if(inp['w']||inp['arrowup'])dy=-1;
     if(inp['s']||inp['arrowdown'])dy=1;
@@ -4291,6 +4559,16 @@ const Game={
     Object.values(W.players).forEach(s=>{
       if(s.role!=='survivor'||!s.alive)return;
       if(pointInRotRect(s.x,s.y,cx,cy,HB_W/2,HB_H/2,ang)||Math.hypot(s.x-p.x,s.y-p.y)<TILE*.9){
+        // Escudito counterattack check
+        if(s.amaxgeRActive){
+          s.amaxgeRActive=false;s.amaxgeRHit=true;
+          const dx2=p.x-s.x,dy2=p.y-s.y,d2=Math.hypot(dx2,dy2)||1;
+          const push=AMAXGE_R_PUSH*TILE;
+          if(!wallAt(p.x+dx2/d2*push,p.y,TILE*.28,'killer'))p.x+=dx2/d2*push;
+          if(!wallAt(p.x,p.y+dy2/d2*push,TILE*.28,'killer'))p.y+=dy2/d2*push;
+          p.amaxgeStunned=true;p.amaxgeStunTimer=AMAXGE_R_STUN_DUR;
+          return; // skip damage
+        }
         applyShieldDamage(s,dmg);
         s.bleedTicks=BLEED_TICKS;s.bleedTimer=BLEED_TICK;
         if(s.hp<=0){s.hp=0;s.alive=false;s.bleedTicks=0;
@@ -4313,7 +4591,10 @@ const Game={
     if(p.role==='killer'){
       if(isNicostos(p))Game.nicoDoEmbestida(pid);
       else Game.doBehead(pid);
-    } else Game.doBloxy(pid);
+    } else {
+      if(isAmaxge5(p))Game.amaxgeDoReferencia(pid);
+      else Game.doBloxy(pid);
+    }
   },
 
   doBehead(pid){
@@ -4342,7 +4623,10 @@ const Game={
     if(p.role==='killer'){
       if(isNicostos(p))Game.nicoDoEstresAgudo(pid);
       else Game.doEnrage(pid);
-    } else Game.doGhostBurger(pid);
+    } else {
+      if(isAmaxge5(p))Game.amaxgeDoEscudito(pid);
+      else Game.doGhostBurger(pid);
+    }
   },
 
   nicoDoEstresAgudo(pid){
@@ -4447,6 +4731,16 @@ const Game={
           if(s.role!=='survivor'||!s.alive)return;
           if(pk.comboHitSet.has(s.id))return;
           if(pointInRotRect(s.x,s.y,cx,cy,COMBO_HB_W/2,COMBO_HB_H/2,ang)){
+            // Escudito counterattack check
+            if(s.amaxgeRActive){
+              s.amaxgeRActive=false;s.amaxgeRHit=true;
+              const dx2=pk.x-s.x,dy2=pk.y-s.y,d2=Math.hypot(dx2,dy2)||1;
+              const push=AMAXGE_R_PUSH*TILE;
+              if(!wallAt(pk.x+dx2/d2*push,pk.y,TILE*.28,'killer'))pk.x+=dx2/d2*push;
+              if(!wallAt(pk.x,pk.y+dy2/d2*push,TILE*.28,'killer'))pk.y+=dy2/d2*push;
+              pk.amaxgeStunned=true;pk.amaxgeStunTimer=AMAXGE_R_STUN_DUR;
+              return; // skip hit on survivor
+            }
             s.comboStunned=true;
             s.comboStunTimer=comboDur-delay+0.10;
             applyShieldDamage(s, hitDmg);
@@ -4481,14 +4775,53 @@ const Game={
       return;
     }
     if(p.role==='survivor'){
+      // Block E interactions while AMaxGe5 is healing (Lore de Fnaf active)
+      if(isAmaxge5(p)&&p.amaxgeEActive){p.amaxgeEActive=false;p.amaxgeMarked=false;return;}
       if(p.interacting){p.interacting=false;p.interactTarget=null;return;}
       for(const g of W.gens){
         if(g.on)continue;
         if(dst(p,{x:g.x*TILE+TILE/2,y:g.y*TILE+TILE/2})<TILE*1.6){p.interacting=true;p.interactTarget=g.id;return;}
       }
-      // No gen/exit available — try Slate Skin
-      Game.doSlateSkin(pid);
+      // No gen — use character ability
+      if(isAmaxge5(p))Game.amaxgeDoLore(pid);
+      else Game.doSlateSkin(pid);
     }
+  },
+
+  // ── AMAXGE5 ABILITIES ──
+  amaxgeDoReferencia(pid){
+    const p=W.players[pid];
+    if(!p||!p.alive||p.role!=='survivor')return;
+    if(p.amaxgeQCd>0||p.amaxgePea)return; // already have a pea planted
+    p.amaxgeQCd=AMAXGE_Q_CD;
+    // Plant pea at player position, facing toward killer (or facing direction)
+    const killer=Object.values(W.players).find(k=>k.role==='killer'&&k.alive);
+    const ang=killer?Math.atan2(killer.y-p.y,killer.x-p.x):p.facing;
+    p.amaxgePea={x:p.x,y:p.y,ang,shootTimer:AMAXGE_Q_SHOOT_INT,rotTimer:AMAXGE_Q_ROT_INT};
+  },
+
+  amaxgeDoLore(pid){
+    const p=W.players[pid];
+    if(!p||!p.alive||p.role!=='survivor')return;
+    if(p.amaxgeECd>0||p.amaxgeEActive)return;
+    p.amaxgeECd=AMAXGE_E_CD;
+    p.amaxgeEActive=true;
+    p.amaxgeETimer=AMAXGE_E_MAX_DUR;
+    p.amaxgeEHealedTime=0;
+    p.amaxgeMarked=true; // visible to everyone during heal
+  },
+
+  amaxgeDoEscudito(pid){
+    const p=W.players[pid];
+    if(!p||!p.alive||p.role!=='survivor')return;
+    if((p.amaxgeRCharges||0)<=0)return; // not unlocked yet
+    if(p.amaxgeRCd>0||p.amaxgeRActive)return;
+    p.amaxgeRCharges--;
+    p.amaxgeRCd=AMAXGE_R_CD;
+    const dur=S.lms?AMAXGE_R_SHIELD_LMS:AMAXGE_R_SHIELD_DUR;
+    p.amaxgeRActive=true;
+    p.amaxgeRTimer=dur;
+    p.amaxgeRHit=false;
   },
 
   doT(pid){
@@ -4709,10 +5042,22 @@ const Game={
         nicoBerserk:p.nicoBerserk||false,nicoBerserkTimer:p.nicoBerserkTimer||0,nicoBerserkReady:p.nicoBerserkReady||0,
         nicoBloodTrailTarget:p.nicoBloodTrailTarget||null,nicoBloodTrailTimer:p.nicoBloodTrailTimer||0,
         nicoMarked:p.nicoMarked||false,nicoKillCount:p.nicoKillCount||0,
+        // AMaxGe5 state
+        survivorChar:p.survivorChar||'noob',
+        amaxgeQCd:p.amaxgeQCd||0, amaxgePea:p.amaxgePea||null,
+        amaxgeECd:p.amaxgeECd||0, amaxgeEActive:p.amaxgeEActive||false, amaxgeETimer:p.amaxgeETimer||0, amaxgeEHealedTime:p.amaxgeEHealedTime||0,
+        amaxgeRCd:p.amaxgeRCd||0, amaxgeRCharges:p.amaxgeRCharges||0, amaxgeRActive:p.amaxgeRActive||false, amaxgeRTimer:p.amaxgeRTimer||0, amaxgeRHit:p.amaxgeRHit||false,
+        amaxgeBlinded:p.amaxgeBlinded||false, amaxgeBlindTimer:p.amaxgeBlindTimer||0,
+        amaxgeRevealed:p.amaxgeRevealed||false, amaxgeRevealTimer:p.amaxgeRevealTimer||0,
+        amaxgeStunned:p.amaxgeStunned||false, amaxgeStunTimer:p.amaxgeStunTimer||0,
+        amaxgeDizzy:p.amaxgeDizzy||false, amaxgeDizzyTimer:p.amaxgeDizzyTimer||0,
+        amaxgeSlow2:p.amaxgeSlow2||false, amaxgeSlow2Timer:p.amaxgeSlow2Timer||0,
+        amaxgeMarked:p.amaxgeMarked||false,
       }])),
       gens:W.gens.map(g=>({id:g.id,on:g.on,prog:g.prog})),
       time:W.time,
       slashFX:slashFX.map(s=>({...s})),
+      amaxgePeaProjs:amaxgePeaProjs.map(p=>({...p})),
       lms:S.lms,lmsTrackerT:S.lmsTrackerT,
     };
   },
@@ -4780,6 +5125,17 @@ const Game={
           p.nicoBloodTrailTarget=d.nicoBloodTrailTarget||null;p.nicoBloodTrailTimer=d.nicoBloodTrailTimer||0;
           p.nicoMarked=d.nicoMarked||false;p.nicoKillCount=d.nicoKillCount||0;
         }
+        // AMaxGe5 sync
+        if(d.survivorChar)p.survivorChar=d.survivorChar;
+        p.amaxgeQCd=d.amaxgeQCd||0; p.amaxgePea=d.amaxgePea||null;
+        p.amaxgeECd=d.amaxgeECd||0; p.amaxgeEActive=d.amaxgeEActive||false; p.amaxgeETimer=d.amaxgeETimer||0; p.amaxgeEHealedTime=d.amaxgeEHealedTime||0;
+        p.amaxgeRCd=d.amaxgeRCd||0; p.amaxgeRCharges=d.amaxgeRCharges||0; p.amaxgeRActive=d.amaxgeRActive||false; p.amaxgeRTimer=d.amaxgeRTimer||0; p.amaxgeRHit=d.amaxgeRHit||false;
+        p.amaxgeBlinded=d.amaxgeBlinded||false; p.amaxgeBlindTimer=d.amaxgeBlindTimer||0;
+        p.amaxgeRevealed=d.amaxgeRevealed||false; p.amaxgeRevealTimer=d.amaxgeRevealTimer||0;
+        p.amaxgeStunned=d.amaxgeStunned||false; p.amaxgeStunTimer=d.amaxgeStunTimer||0;
+        p.amaxgeDizzy=d.amaxgeDizzy||false; p.amaxgeDizzyTimer=d.amaxgeDizzyTimer||0;
+        p.amaxgeSlow2=d.amaxgeSlow2||false; p.amaxgeSlow2Timer=d.amaxgeSlow2Timer||0;
+        p.amaxgeMarked=d.amaxgeMarked||false;
       }
 
       // Auto-enter spectate after short death pause
@@ -4798,6 +5154,7 @@ const Game={
     gs.gens.forEach(gd=>{const g=W.gens.find(x=>x.id===gd.id);if(g){g.on=gd.on;g.prog=gd.prog;}});
     W.time=gs.time;
     if(gs.slashFX)slashFX=gs.slashFX.filter(s=>s.life>0);
+    if(gs.amaxgePeaProjs)amaxgePeaProjs=gs.amaxgePeaProjs;
     if(gs.lms!==undefined){S.lms=gs.lms;S.lmsTrackerT=gs.lmsTrackerT||0;}
   },
 
@@ -5087,6 +5444,60 @@ const Game={
     });
 
     ctx.shadowBlur=0;
+
+    // ── AMAXGE5 Field Effects ──
+    const tNow=Date.now();
+    // 1. Healing auras (Lore de Fnaf)
+    Object.values(W.players).forEach(p=>{
+      if(!p.alive||!isAmaxge5(p)||!p.amaxgeEActive)return;
+      const pulse=0.6+Math.sin(tNow/200)*0.2;
+      ctx.save();
+      ctx.globalAlpha=pulse*0.4;
+      ctx.beginPath();ctx.arc(p.x,p.y,AMAXGE_E_RANGE*TILE,0,Math.PI*2);
+      ctx.fillStyle='rgba(50,255,100,0.2)';ctx.fill();
+      ctx.strokeStyle='rgba(50,255,100,0.6)';ctx.lineWidth=2;ctx.stroke();
+      // Little crosses floating up
+      ctx.globalAlpha=pulse*0.8;
+      ctx.fillStyle='#32ff64';ctx.font=`${TILE*.4}px monospace`;ctx.textAlign='center';
+      for(let i=0;i<3;i++){
+        const oy=(tNow/15+i*40)%100;
+        const ox=Math.sin(tNow/300+i)*TILE;
+        ctx.fillText('+',p.x+ox,p.y-(oy/100)*AMAXGE_E_RANGE*TILE);
+      }
+      ctx.restore();
+    });
+    // 2. Planted Peas
+    Object.values(W.players).forEach(p=>{
+      if(!p.alive||!isAmaxge5(p)||!p.amaxgePea)return;
+      const pea=p.amaxgePea;
+      ctx.save();
+      ctx.translate(pea.x,pea.y);ctx.rotate(pea.ang);
+      // Pot
+      ctx.fillStyle='#8b5a2b';ctx.fillRect(-8,-6,12,12);
+      ctx.fillStyle='#5c3a21';ctx.fillRect(-10,-8,16,4);
+      // Plant stem
+      ctx.fillStyle='#22aa22';ctx.fillRect(-2,-4,8,8);
+      // Pea head
+      ctx.beginPath();ctx.arc(4,0,8,0,Math.PI*2);ctx.fill();
+      // Mouth (shooter)
+      ctx.fillStyle='#115511';ctx.beginPath();ctx.ellipse(10,0,3,4,0,0,Math.PI*2);ctx.fill();
+      // Leaf
+      ctx.fillStyle='#33cc33';ctx.beginPath();ctx.ellipse(-6,6,6,3,0.5,0,Math.PI*2);ctx.fill();
+      ctx.restore();
+    });
+    // 3. Pea projectiles
+    amaxgePeaProjs.forEach(proj=>{
+      ctx.save();
+      ctx.translate(proj.x,proj.y);
+      ctx.shadowColor='#44ff44';ctx.shadowBlur=8;
+      ctx.fillStyle='#55ff55';
+      ctx.beginPath();ctx.arc(0,0,6,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#11aa11';ctx.lineWidth=1.5;ctx.stroke();
+      // Trail
+      ctx.globalAlpha=0.4;
+      ctx.beginPath();ctx.moveTo(-proj.vx*15,-proj.vy*15);ctx.lineTo(0,0);ctx.stroke();
+      ctx.restore();
+    });
 
     // Slash FX — hitbox debug + combo animation always visible
     slashFX.forEach(sf=>{
@@ -5423,6 +5834,70 @@ const Game={
         ctx.shadowBlur=0;
 
         }
+      } else if(isAmaxge5(p)){
+        // ── AMAXGE5 SURVIVOR ──
+        // Legs — casual blue shorts
+        ctx.fillStyle='#3b5998';
+        ctx.fillRect(-s*.38,s*.28,s*.33,s*.48);
+        ctx.fillRect(s*.05,s*.28,s*.33,s*.48);
+        // Shoes
+        ctx.fillStyle='#333';
+        ctx.fillRect(-s*.42,s*.76,s*.36,s*.12);
+        ctx.fillRect(s*.06,s*.76,s*.36,s*.12);
+        // Torso — white shirt
+        ctx.fillStyle='#f0f0f0';
+        ctx.fillRect(-s*.5,-s*.38,s,s*.72);
+        // Shirt shine/details
+        ctx.fillStyle='rgba(200,200,200,.13)';
+        ctx.fillRect(-s*.38,-s*.3,s*.38,s*.5);
+        // Arms — skin tone
+        ctx.fillStyle='#f1c27d';
+        ctx.fillRect(-s*.83,-s*.3,s*.3,s*.62);
+        ctx.fillRect(s*.53,-s*.3,s*.3,s*.62);
+        // Hands
+        ctx.fillStyle='#e0a860';
+        ctx.fillRect(-s*.86,s*.22,s*.32,s*.2);
+        ctx.fillRect(s*.54,s*.22,s*.32,s*.2);
+        // Neck
+        ctx.fillStyle='#e0a860';
+        ctx.fillRect(-s*.14,-s*.44,s*.28,s*.12);
+        // Head — skin tone
+        ctx.fillStyle='#f1c27d';
+        ctx.fillRect(-s*.42,-s*1.08,s*.84,s*.72);
+        // Hair — dark brown
+        ctx.fillStyle='#3e2723';
+        ctx.fillRect(-s*.45,-s*1.12,s*.9,s*.25);
+        ctx.fillRect(-s*.45,-s*.87,s*.15,s*.3); // sideburns
+        ctx.fillRect(s*.3,-s*.87,s*.15,s*.3);
+        // Eyes
+        ctx.fillStyle='#1a1a1a';
+        ctx.fillRect(-s*.28,-s*.82,s*.15,s*.16);
+        ctx.fillRect(s*.13,-s*.82,s*.15,s*.16);
+        ctx.fillStyle='#fff';
+        ctx.fillRect(-s*.24,-s*.8,s*.05,s*.05);
+        ctx.fillRect(s*.17,-s*.8,s*.05,s*.05);
+        // Smile / calm expression
+        ctx.strokeStyle='#3e2723';ctx.lineWidth=s*.06;ctx.lineCap='round';
+        ctx.beginPath();ctx.arc(0,-s*.54,s*.15,0.1,Math.PI-0.1);ctx.stroke();
+        
+        // Shield active (R) - hold a hammer and glow
+        if(p.amaxgeRActive){
+          // Hammer
+          ctx.save();ctx.translate(s*.7,s*.3);ctx.rotate(-0.5);
+          ctx.fillStyle='#5c3a21';ctx.fillRect(-s*.06,-s*.2,s*.12,s*.8); // handle
+          ctx.fillStyle='#7f8c8d';ctx.fillRect(-s*.2,-s*.4,s*.4,s*.3); // head
+          ctx.fillStyle='#95a5a6';ctx.fillRect(-s*.25,-s*.35,s*.5,s*.2);
+          ctx.restore();
+          // Shield aura
+          const pulse=0.8+Math.sin(Date.now()/150)*0.2;
+          ctx.strokeStyle=`rgba(50,150,255,${pulse})`;ctx.lineWidth=s*.1;
+          ctx.fillStyle=`rgba(50,150,255,0.15)`;
+          ctx.beginPath();ctx.arc(0,0,s*1.4,0,Math.PI*2);ctx.fill();ctx.stroke();
+        }
+
+        // "ME" outline
+        if(isMe){ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=1.5;ctx.strokeRect(-s*.52,-s*1.1,s*1.04,s*2.02);}
+
       } else {
         // ── NOOB SURVIVOR ──
         // Legs — green
