@@ -2482,35 +2482,47 @@ const UI={
       const erLabel=document.getElementById('enrageName');
       if(erLabel)erLabel.textContent=erActive?'🔥 ENRAGED':'ENRAGED';
       const cdPct=me.m1Cd>0?me.m1Cd/M1_CD:0;
-      document.getElementById('abilityM1Overlay').style.transform=`scaleY(${cdPct})`;
-      document.getElementById('abilityM1Wrap').className='ability-icon-wrap'+(cdPct>0?' on-cd':' ready');
+      const m1Ov=document.getElementById('abilityM1Overlay');
+      if(m1Ov)m1Ov.style.transform=`scaleY(${cdPct})`;
+      const m1Wrap=document.getElementById('abilityM1Wrap');
+      if(m1Wrap)m1Wrap.className='ability-icon-wrap'+(cdPct>0?' on-cd':' ready');
       const numEl=document.getElementById('abilityM1Num');
-      numEl.style.display=cdPct>0?'flex':'none';
-      if(cdPct>0)numEl.textContent=me.m1Cd.toFixed(1);
+      if(numEl){
+        numEl.style.display=cdPct>0?'flex':'none';
+        if(cdPct>0)numEl.textContent=me.m1Cd.toFixed(1);
+      }
       // Behead (Q)
       const bqCd=me.qCd||0;
       const bqPct=bqCd>0?bqCd/Q_CD:0;
       const isDashing=me.beheadDashing||false;
       const isSlow=me.beheadSlow||false;
-      document.getElementById('abilityBeheadOverlay').style.transform=`scaleY(${bqPct})`;
-      document.getElementById('abilityBeheadWrap').className='ability-icon-wrap'+(isDashing?'ready':isSlow?' on-cd':bqPct>0?' on-cd':' ready');
+      const bqOv=document.getElementById('abilityBeheadOverlay');
+      if(bqOv)bqOv.style.transform=`scaleY(${bqPct})`;
+      const bqWrap=document.getElementById('abilityBeheadWrap');
+      if(bqWrap)bqWrap.className='ability-icon-wrap'+(isDashing?'ready':isSlow?' on-cd':bqPct>0?' on-cd':' ready');
       const bqNum=document.getElementById('abilityBeheadNum');
-      bqNum.style.display=(bqPct>0||isDashing||isSlow)?'flex':'none';
-      if(isDashing)bqNum.textContent='⚡';
-      else if(isSlow)bqNum.textContent='🐢';
-      else if(bqPct>0)bqNum.textContent=bqCd.toFixed(1);
+      if(bqNum){
+        bqNum.style.display=(bqPct>0||isDashing||isSlow)?'flex':'none';
+        if(isDashing)bqNum.textContent='⚡';
+        else if(isSlow)bqNum.textContent='🐢';
+        else if(bqPct>0)bqNum.textContent=bqCd.toFixed(1);
+      }
       // Combo (E)
       const enraged=me.enraged||false;
       const comboCdMax=enraged?COMBO_CD_ENRAGED:COMBO_CD;
       const comboCdCur=me.comboCd||0;
       const comboPct=comboCdCur>0?comboCdCur/comboCdMax:0;
       const isComboActive=me.comboActive||false;
-      document.getElementById('abilityComboOverlay').style.transform=`scaleY(${comboPct})`;
-      document.getElementById('abilityComboWrap').className='ability-icon-wrap'+(isComboActive?'ready':comboPct>0?' on-cd':' ready');
+      const comboOv=document.getElementById('abilityComboOverlay');
+      if(comboOv)comboOv.style.transform=`scaleY(${comboPct})`;
+      const comboWrap=document.getElementById('abilityComboWrap');
+      if(comboWrap)comboWrap.className='ability-icon-wrap'+(isComboActive?'ready':comboPct>0?' on-cd':' ready');
       const comboNum=document.getElementById('abilityComboNum');
-      comboNum.style.display=(comboPct>0||isComboActive)?'flex':'none';
-      if(isComboActive)comboNum.textContent='⚔';
-      else if(comboPct>0)comboNum.textContent=Math.ceil(comboCdCur)+'s';
+      if(comboNum){
+        comboNum.style.display=(comboPct>0||isComboActive)?'flex':'none';
+        if(isComboActive)comboNum.textContent='⚔';
+        else if(comboPct>0)comboNum.textContent=Math.ceil(comboCdCur)+'s';
+      }
       const comboLabel=document.getElementById('comboName');
       if(comboLabel)comboLabel.textContent=enraged?'🔥 COMBO':'COMBO';
       } // end !nicoMode
