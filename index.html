@@ -934,7 +934,6 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     <div id="lobbyBottomBar">
       <div id="lobbyPlayerList"></div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <button class="lobby-btn" id="lobbyAfkBtn" onclick="MP.toggleAfk()">🛌 AFK: NO</button>
         <button class="lobby-btn" onclick="MP.leaveRoom()">← SALIR</button>
       </div>
     </div>
@@ -974,6 +973,14 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     <!-- Settings panel (appears to the right of gear btn) -->
     <div id="lobbySettingsPanel">
       <div class="lsp-title">AJUSTES</div>
+      <div class="lsp-option">
+        <span class="lsp-option-lbl">AFK</span>
+        <label class="lsp-toggle">
+          <input type="checkbox" id="lobbyAfkToggle" onchange="MP.setAfk(this.checked,false)">
+          <span class="lsp-toggle-track"></span>
+          <span class="lsp-toggle-thumb"></span>
+        </label>
+      </div>
       <div class="lsp-option">
         <span class="lsp-option-lbl">HITBOXES</span>
         <label class="lsp-toggle">
@@ -2257,8 +2264,8 @@ const UI={
       div.innerHTML=`${p.host?'👑 ':'🎮 '}${p.username||p.name}${afkTxt}<span class="lp-mal">⚡${mal}</span>`;
       list.appendChild(div);
     });
-    const afkBtn=document.getElementById('lobbyAfkBtn');
-    if(afkBtn)afkBtn.textContent=`🛌 AFK: ${S.isAfk?'SÍ':'NO'}`;
+    const afkToggle=document.getElementById('lobbyAfkToggle');
+    if(afkToggle)afkToggle.checked=!!S.isAfk;
     UI.renderStatsPanel();
   },
 
